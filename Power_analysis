@@ -1,0 +1,210 @@
+# This script runs power analyses for two experiments based on data from a pilot study.
+# Power analyses are performed on three dependent variables:
+# 1) Binary response (yes/no) 
+# 2) Response times
+# 3) Confidence ratings
+
+# Load necessary libraries
+install.packages("lme4")  # For mixed-effects models
+library(lme4)
+install.packages("simr")  # For power analysis of mixed models
+library(simr)
+install.packages("ordinal")  # For cumulative link mixed models (ordinal regression)
+library(ordinal)
+install.packages("ggplot2")  # For visualization
+library(ggplot2)
+
+## -------------------- Power Analysis for Binary Response (Yes/No) --------------------
+
+# Load dataset containing responses from the pilot experiment
+regression_input <- read_csv("factorial_regression_input.csv")
+
+# Recode binary responses: 'left' -> 1, 'right' -> 0
+regression_input$binary_question_key_resp.keys_1 <- ifelse(
+  regression_input$binary_question_key_resp.keys_1 == "left", "1",
+  ifelse(regression_input$binary_question_key_resp.keys_1 == "right", "0", regression_input$binary_question_key_resp.keys_1)
+)
+
+# Convert binary responses to factor for logistic regression
+regression_input$binary_question_key_resp.keys_1 <- as.factor(regression_input$binary_question_key_resp.keys_1)
+
+# Ensure participant is a factor variable
+regression_input$participant <- as.factor(regression_input$participant)
+
+# Ensure independent variables are factors with correct levels
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
+
+# Check data structure before fitting the model
+str(regression_input)
+
+# Fit a mixed-effects logistic regression model (GLMM) with interaction terms
+binary_model_mixed <- glmer(binary_question_key_resp.keys_1 ~ correlation * interaction + (1 | participant),
+                            family = binomial, data = regression_input)
+
+# Summarize the model results
+summary(binary_model_mixed)
+
+# Extract fixed effects estimates
+fixed_effects <- fixef(binary_model_mixed)
+
+# Convert log-odds to odds ratios for easier interpretation
+odds_ratios <- exp(fixed_effects)
+print(odds_ratios)
+
+# Define a function to simulate power at different sample sizes
+simulate_power <- function(n) {
+  tryCatch({
+    # Extend the model to simulate data for 'n' participants
+    extended_model <- extend(binary_model_mixed, along = "participant", n = n)
+    
+    # Ensure correct factor levels
+    levels(extended_model@frame$correlation) <- levels(regression_input$correlation)
+    levels(extended_model@frame$interaction) <- levels(regression_input$interaction)
+    
+    # Run power analysis for the interaction effect
+    power_result <- powerSim(extended_model, fixed("correlationlow:interactionabsent"), nsim = 100)
+    
+    print(power_result)
+    return(power_result)
+  }, error = function(e) {
+    cat("Error in simulation for sample size", n, ":", e$message, "\n")
+    return(NULL)
+  })
+}
+
+# Run power simulations for sample sizes between 30 and 110 (in steps of 10)
+sample_sizes <- seq(30, 110, by = 10)
+power_results <- lapply(sample_sizes, simulate_power)
+
+# Remove failed simulations from results
+successful_results <- power_results[!sapply(power_results, is.null)]
+
+# Check the structure of successful results
+print("Successful Results Structure:")
+str(successful_results)
+
+# Extract power estimates
+if (length(successful_results) > 0) {
+  power_estimates <- sapply(successful_results, function(x) {
+    if (!is.null(x)) return(x$x / x$n) else return(NA)
+  })
+  
+  successful_sample_sizes <- sample_sizes[!sapply(power_results, is.null)]
+  
+  # Debug: Print power estimates
+  print("Power estimates:")
+  print(power_estimates)
+  
+  # Create a data frame for plotting
+  power_data <- data.frame(sample_size = successful_sample_sizes, power = power_estimates)
+  
+  # Plot power curve
+  ggplot(power_data, aes(x = sample_size, y = power)) +
+    geom_line() +
+    geom_point() +
+    labs(title = "Power Analysis", x = "Sample Size", y = "Power") +
+    theme_minimal()
+  
+  print(power_data)  # Print power estimates
+} else {
+  cat("No successful power simulations. Check the model and simulation setup.\n")
+}
+
+## -------------------- Power Analysis for Response Times --------------------
+
+# Reload dataset
+regression_input <- read_csv("factorial_regression_input.csv")
+
+# Ensure participant and independent variables are factors
+regression_input$participant <- as.factor(regression_input$participant)
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
+
+# Check data structure
+str(regression_input)
+
+# Fit a mixed-effects Gamma regression model for response times
+gamma_model_mixed <- glmer(binary_question_key_resp.rt_1 ~ correlation * interaction + (1 | participant),
+                           family = Gamma(link = "log"), data = regression_input)
+
+# Summarize model results
+summary(gamma_model_mixed)
+
+
+
+## -------------------- Power Analysis for Confidence Ratings --------------------
+
+# Since the `simr` package does not directly support cumulative link mixed models (clmm),
+# we use a custom simulation approach.
+
+# Reload dataset
+regression_input <- read_csv("factorial_regression_input.csv")
+
+# Ensure participant and independent variables are factors
+regression_input$participant <- as.factor(regression_input$participant)
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
+
+# Convert confidence ratings to an ordered factor
+regression_input$slider_confidence.response_1 <- factor(regression_input$slider_confidence.response_1, ordered = TRUE)
+
+# Check data structure
+str(regression_input)
+
+# Fit a cumulative link mixed model (ordinal regression)
+ordinal_model_mixed <- clmm(slider_confidence.response_1 ~ correlation * interaction + (1 | participant),
+                            data = regression_input)
+
+# Summarize the model results
+summary(ordinal_model_mixed)
+
+# Extract fixed effects estimates
+fixed_effects <- coef(ordinal_model_mixed)
+print(fixed_effects)
+
+# Define a function to simulate power at different sample sizes for ordinal regression
+simulate_power <- function(n, original_data) {
+  tryCatch({
+    # Sample 'n' participants from the original dataset
+    sampled_data <- original_data[sample(1:nrow(original_data), n, replace = TRUE), ]
+    
+    # Fit model to the sampled dataset
+    sim_model <- clmm(slider_confidence.response_1 ~ correlation * interaction + (1 | participant),
+                      data = sampled_data)
+    
+    # Extract p-value for interaction term
+    p_value <- summary(sim_model)$coefficients["correlationlow:interactionabsent", "Pr(>|z|)"]
+    
+    # Determine if effect is significant (p < 0.05)
+    is_significant <- p_value < 0.05
+    return(is_significant)
+  }, error = function(e) {
+    cat("Error in simulation for sample size", n, ":", e$message, "\n")
+    return(NA)
+  })
+}
+
+# Run simulations for ordinal regression power analysis
+sample_sizes <- seq(30, 110, by = 10)
+nsim <- 100  # Number of simulations per sample size
+power_results <- numeric(length(sample_sizes))
+
+for (i in seq_along(sample_sizes)) {
+  n <- sample_sizes[i]
+  cat("Simulating for sample size:", n, "\n")
+  results <- replicate(nsim, simulate_power(n, regression_input))
+  power_results[i] <- mean(results, na.rm = TRUE)
+  cat("Power for sample size", n, ":", power_results[i], "\n")
+}
+
+# Create a data frame and plot power curve
+power_data <- data.frame(sample_size = sample_sizes, power = power_results)
+
+ggplot(power_data, aes(x = sample_size, y = power)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Power Analysis", x = "Sample Size", y = "Power") +
+  theme_minimal()
+
+print(power_data)  # Print power estimates
