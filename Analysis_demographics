@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------------
 # Script for Processing and Summarizing Demographic Data
 # -----------------------------------------------------------------------------------
-# This script processes participant demographic data from an online experiment.
+# This script processes participant demographic data from the two experiments, excluding outliers.
 # It performs the following tasks:
 #   1) Loads the dataset and selects relevant demographic variables
 #   2) Cleans and formats categorical data (Gender, Education, Ethnicity)
