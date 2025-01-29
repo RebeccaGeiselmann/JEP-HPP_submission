@@ -1,0 +1,177 @@
+# -----------------------------------------------------------------------------------
+# Script for Processing and Summarizing Demographic Data
+# -----------------------------------------------------------------------------------
+# This script processes participant demographic data from an online experiment.
+# It performs the following tasks:
+#   1) Loads the dataset and selects relevant demographic variables
+#   2) Cleans and formats categorical data (Gender, Education, Ethnicity)
+#   3) Computes descriptive statistics (counts, means, standard deviations)
+#   4) Replaces age ranges with approximate midpoint values
+#   5) Creates a summary table and exports the cleaned dataset
+# -----------------------------------------------------------------------------------
+
+# Load required library
+library(dplyr)
+
+# -----------------------------------------------------------------------------------
+# Load Data
+# -----------------------------------------------------------------------------------
+
+# Set the working directory 
+setwd("")
+
+# Load the dataset, ensuring strings are not automatically converted to factors
+data <- read.csv("", stringsAsFactors = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Select and Rename Relevant Columns
+# -----------------------------------------------------------------------------------
+
+# Extract key demographic variables from the dataset and rename them
+new_data <- data %>%
+  dplyr::select(
+    Qualtrics_ID = `X..ImportId...ParticipantID..`,  # Unique participant identifier
+    Worker_ID = `X..ImportId...workerId..`,          # Amazon Mechanical Turk (or Prolific) ID
+    Age = `X..ImportId...QID4..`,                    # Reported age range
+    Gender = `X..ImportId...QID5..`,                 # Gender identity
+    Education_level = `X..ImportId...QID6..`,        # Highest completed education level
+    Ethnicity = `X..ImportId...QID7..`               # Ethnic background
+  )
+
+# Save the cleaned dataset with selected demographic variables
+write.csv(new_data, "Motion_perception_chase_confidence_demographics.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Count and Format Gender Data
+# -----------------------------------------------------------------------------------
+
+# Compute frequency counts for gender categories
+gender_counts <- new_data %>%
+  dplyr::count(Gender) %>%
+  dplyr::mutate(
+    Gender = ifelse(Gender == 1, "Male", 
+                    ifelse(Gender == 2, "Female", "Other/Unknown"))  # Handle missing/other responses
+  )
+
+# Print gender distribution
+print(gender_counts)
+
+# -----------------------------------------------------------------------------------
+# Count and Format Education Levels
+# -----------------------------------------------------------------------------------
+
+# Compute frequency counts for education levels and assign meaningful labels
+education_counts <- new_data %>%
+  dplyr::count(Education_level) %>%
+  dplyr::mutate(
+    Education_level = case_when(
+      Education_level == 1 ~ "Some high school",
+      Education_level == 2 ~ "High school diploma or equivalent",
+      Education_level == 3 ~ "Some college or vocational training",
+      Education_level == 4 ~ "Bachelor's degree",
+      Education_level == 5 ~ "Master's degree (or professional equivalent)",
+      Education_level == 6 ~ "Doctoral degree",
+      TRUE ~ "Other/Unknown"  # Handle missing/invalid values
+    )
+  )
+
+# Print education distribution
+print(education_counts)
+
+# -----------------------------------------------------------------------------------
+# Process and Format Ethnicity Data
+# -----------------------------------------------------------------------------------
+
+# Replace unexpected values with NA and split multiple ethnicity entries
+new_data <- new_data %>%
+  dplyr::mutate(
+    Ethnicity = ifelse(Ethnicity %in% c("", "{\"ImportId\":\"QID7\"}"), NA, Ethnicity)  # Handle missing or invalid responses
+  ) %>%
+  tidyr::separate_rows(Ethnicity, sep = ",") %>%  # Split multiple ethnicities into separate rows
+  dplyr::mutate(Ethnicity = as.numeric(Ethnicity))  # Convert to numeric after splitting
+
+# Compute frequency counts for ethnicity categories and assign meaningful labels
+ethnicity_counts <- new_data %>%
+  dplyr::count(Ethnicity) %>%
+  dplyr::mutate(
+    Ethnicity = case_when(
+      Ethnicity == 1 ~ "White/Caucasian",
+      Ethnicity == 2 ~ "Black/African American",
+      Ethnicity == 3 ~ "Hispanic/Latino",
+      Ethnicity == 4 ~ "Asian/Pacific Islander",
+      Ethnicity == 5 ~ "Native American/Indigenous",
+      Ethnicity == 6 ~ "Mixed",
+      TRUE ~ "Other/Unknown"  # Handle missing/invalid values
+    )
+  )
+
+# Print ethnicity distribution
+print(ethnicity_counts)
+
+# -----------------------------------------------------------------------------------
+# Process Age Data: Convert Age Ranges to Midpoints
+# -----------------------------------------------------------------------------------
+
+# Define midpoint values for each age range
+age_midpoints <- c(
+  "18-24" = 21,
+  "25-34" = 29.5,
+  "35-44" = 39.5,
+  "45-54" = 49.5,
+  "55-64" = 59.5,
+  "65 or older" = 70  # Approximate midpoint for 65+
+)
+
+# Replace age ranges with numeric midpoint values
+new_data <- new_data %>%
+  dplyr::mutate(Age = age_midpoints[Age])
+
+# -----------------------------------------------------------------------------------
+# Compute Summary Statistics for Age
+# -----------------------------------------------------------------------------------
+
+# Compute mean and standard deviation of age
+mean_age <- mean(new_data$Age, na.rm = TRUE)
+std_dev_age <- sd(new_data$Age, na.rm = TRUE)
+
+# Print mean and standard deviation
+cat("Approximate Mean Age:", mean_age, "\n")
+cat("Approximate Age Standard Deviation:", std_dev_age, "\n")
+
+# Compute median and interquartile range (IQR) of age
+median_age <- median(new_data$Age, na.rm = TRUE)
+iqr_age <- IQR(new_data$Age, na.rm = TRUE)
+
+# Print median and IQR
+cat("Median Age (Approx.):", median_age, "\n")
+cat("Interquartile Range (Approx.):", iqr_age, "\n")
+
+# -----------------------------------------------------------------------------------
+# Compute Age Distribution
+# -----------------------------------------------------------------------------------
+
+# Count participants in each age range
+age_distribution <- new_data %>%
+  dplyr::count(Age, name = "Count") %>%
+  dplyr::mutate(Age = names(age_midpoints)[match(Age, age_midpoints)])  # Convert midpoints back to age ranges
+
+# -----------------------------------------------------------------------------------
+# Create a Comprehensive Demographic Summary Table
+# -----------------------------------------------------------------------------------
+
+# Compile all demographic counts into a single summary table
+demographics_table <- data.frame(
+  Category = c("Gender", rep("", nrow(gender_counts) - 1),
+               "Education Level", rep("", nrow(education_counts) - 1),
+               "Ethnicity", rep("", nrow(ethnicity_counts) - 1),
+               "Age Range", rep("", nrow(age_distribution) - 1)),
+  Subcategory = c(gender_counts$Gender, education_counts$Education_level,
+                  ethnicity_counts$Ethnicity, age_distribution$Age),
+  Count = c(gender_counts$n, education_counts$n, ethnicity_counts$n, age_distribution$Count)
+)
+
+# Save the final demographics table to a CSV file
+write.csv(demographics_table, "Demographics_Summary_Table.csv", row.names = FALSE)
+
+# Print the summary table for review
+print(demographics_table)
