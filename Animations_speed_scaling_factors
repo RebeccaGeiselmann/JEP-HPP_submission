@@ -1,0 +1,141 @@
+# This script processes trajectory data containing the X and Y coordinates
+# from the two moving discs across the different experimental conditions. The script performs the following steps:
+
+# 1. Reads movement data from multiple CSV files (grouped by trial types: 1, 4, 5, and 8).
+# 2. Computes displacement (dx, dy) and calculates speed for both discs using the Euclidean distance formula.
+# 3. Generates summary statistics for each experimental condition, computing the mean speed per disc.
+# 4. Determines scaling factors to normalize movement speeds across conditions for experimental consistency.
+
+# This script is useful for post-processing movement trajectories, ensuring that speeds are standardized 
+# across experimental conditions before generating visual animations.
+
+import os
+import pandas as pd
+import numpy as np
+
+# Print the current working directory
+print("Current working directory:", os.getcwd())
+
+# List of input file paths containing trajectory data for different trial types
+file_paths = [
+    # Type 1 files
+    'dots_00_type1.0_seed0.csv', 'dots_01_type1.0_seed0.csv', ..., 'dots_09_type1.0_seed0.csv',
+    # Type 4 files
+    'dots_10_type4.0_seed0.csv', 'dots_11_type4.0_seed0.csv', ..., 'dots_19_type4.0_seed0.csv',
+    # Type 5 files
+    'dots_20_type5.0_seed0.csv', 'dots_21_type5.0_seed0.csv', ..., 'dots_29_type5.0_seed0.csv',
+    # Type 8 files
+    'dots_30_type8.0_seed0.csv', 'dots_31_type8.0_seed0.csv', ..., 'dots_39_type8.0_seed0.csv'
+]
+
+# List of corresponding output file paths where speed calculations will be saved
+output_paths = [
+    'dots_00_type1.0_speed.csv', 'dots_01_type1.0_speed.csv', ..., 'dots_09_type1.0_speed.csv',
+    'dots_10_type4.0_speed.csv', 'dots_11_type4.0_speed.csv', ..., 'dots_39_type8.0_speed.csv'
+]
+
+# List of summary files for each group (Type 1, Type 4, Type 5, Type 8)
+summary_output_paths = [
+    'summary_group_1.csv', 'summary_group_2.csv', 'summary_group_3.csv', 'summary_group_4.csv'
+]
+
+# Time step used in trajectory calculations
+dt = 0.025  # Time interval between frames
+
+# Function to process a batch of files, calculate speeds, and save summary
+def process_files(group_files, group_outputs, summary_output):
+    """
+    Processes a group of trajectory files, calculates speed, and generates summary statistics.
+
+    Parameters:
+    - group_files: List of input file paths.
+    - group_outputs: List of corresponding output file paths.
+    - summary_output: Path to save the summary file.
+    """
+
+    speeds1, speeds2 = [], []  # Lists to store mean speeds for summary
+
+    for file_path, output_path in zip(group_files, group_outputs):
+        df = pd.read_csv(file_path)  # Read trajectory data
+
+        # Calculate displacement (dx, dy) for both discs
+        df['dx1'] = df['X1'].diff()
+        df['dy1'] = df['Y1'].diff()
+        df['dx2'] = df['X2'].diff()
+        df['dy2'] = df['Y2'].diff()
+
+        # Compute speed for each disc using the Euclidean distance formula
+        df['speed1'] = np.sqrt(df['dx1']**2 + df['dy1']**2) / dt
+        df['speed2'] = np.sqrt(df['dx2']**2 + df['dy2']**2) / dt
+
+        # Save the processed file
+        df.to_csv(output_path, index=False)
+        print(f"Processed {file_path} and saved to {output_path}")
+
+        # Collect mean speeds for summary
+        speeds1.append(df['speed1'].mean())
+        speeds2.append(df['speed2'].mean())
+
+    # Create a summary DataFrame and save to file
+    summary_df = pd.DataFrame({
+        'File': group_outputs,
+        'Mean Speed Disc 1': speeds1,
+        'Mean Speed Disc 2': speeds2
+    })
+    summary_df.to_csv(summary_output, index=False)
+    print(f"Saved summary data to {summary_output}")
+
+# Process each group of 10 files (corresponding to each trial type)
+for i in range(0, len(file_paths), 10):
+    group_files = file_paths[i:i+10]  # Select the current group of files
+    group_outputs = output_paths[i:i+10]  # Select corresponding output files
+    summary_output = summary_output_paths[i // 10]  # Select the correct summary file
+    process_files(group_files, group_outputs, summary_output)
+
+# List to hold the overall mean speeds across all groups
+overall_means = []
+
+# Compute overall means for each group
+for summary_file in summary_output_paths:
+    df = pd.read_csv(summary_file)  # Load summary data
+    mean_speed1 = df['Mean Speed Disc 1'].mean()
+    mean_speed2 = df['Mean Speed Disc 2'].mean()
+    overall_means.append({'Group': summary_file, 'Mean Speed Disc 1': mean_speed1, 'Mean Speed Disc 2': mean_speed2})
+
+# Convert to DataFrame and display results
+overall_mean_df = pd.DataFrame(overall_means)
+print(overall_mean_df)
+
+# Combine groups for special analysis (Type 1 & 3, Type 2 & 4)
+group_1_3 = pd.concat([pd.read_csv('summary_group_1.csv'), pd.read_csv('summary_group_3.csv')])
+group_2_4 = pd.concat([pd.read_csv('summary_group_2.csv'), pd.read_csv('summary_group_4.csv')])
+
+# Calculate mean speeds for combined groups
+mean_speed_disc1_1_3 = group_1_3['Mean Speed Disc 1'].mean()
+mean_speed_disc2_1_3 = group_1_3['Mean Speed Disc 2'].mean()
+mean_speed_disc1_2_4 = group_2_4['Mean Speed Disc 1'].mean()
+mean_speed_disc2_2_4 = group_2_4['Mean Speed Disc 2'].mean()
+
+# Compute the target speeds as the average across groups
+target_speed_disc1 = (mean_speed_disc1_1_3 + mean_speed_disc1_2_4) / 2
+target_speed_disc2 = (mean_speed_disc2_1_3 + mean_speed_disc2_2_4) / 2
+
+# Compute scaling factors to adjust speeds
+scaling_factor_disc1_13 = target_speed_disc1 / mean_speed_disc1_1_3
+scaling_factor_disc1_24 = target_speed_disc1 / mean_speed_disc1_2_4
+scaling_factor_disc2_13 = target_speed_disc2 / mean_speed_disc2_1_3
+scaling_factor_disc2_24 = target_speed_disc2 / mean_speed_disc2_2_4
+
+# Print the computed scaling factors
+print("Scaling factor for Disc 1 in Groups 1 and 3:", scaling_factor_disc1_13)
+print("Scaling factor for Disc 1 in Groups 2 and 4:", scaling_factor_disc1_24)
+print("Scaling factor for Disc 2 in Groups 1 and 3:", scaling_factor_disc2_13)
+print("Scaling factor for Disc 2 in Groups 2 and 4:", scaling_factor_disc2_24)
+
+# Save scaling factors to a CSV file
+df_scaling_factors = pd.DataFrame({
+    'Group': ['1&3', '2&4', '1&3', '2&4'],
+    'Disc': ['1', '1', '2', '2'],
+    'Scaling Factor': [scaling_factor_disc1_13, scaling_factor_disc1_24, scaling_factor_disc2_13, scaling_factor_disc2_24]
+})
+df_scaling_factors.to_csv('scaling_factors.csv', index=False)
