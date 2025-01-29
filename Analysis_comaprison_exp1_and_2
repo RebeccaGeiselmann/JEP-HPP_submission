@@ -1,0 +1,165 @@
+-----------------------------------------------------------------------------------
+# Script for Comparing Experiment 1 and Experiment 2
+# -----------------------------------------------------------------------------------
+# This script analyzes the differences between two behavioral experiments.
+# It performs data wrangling, computes descriptive statistics, and runs 
+# mixed-effects models for three dependent variables:
+#   1) Binary responses (Yes/No)
+#   2) Response times
+#   3) Confidence ratings (ordinal)
+# Post-hoc comparisons are also conducted using estimated marginal means (emmeans).
+# -----------------------------------------------------------------------------------
+
+# Load required libraries
+library(dplyr)      # Data manipulation
+library(readr)      # Reading CSV files
+library(lme4)       # Mixed-effects models (binary and gamma regression)
+library(emmeans)    # Post-hoc analysis
+library(ordinal)    # Cumulative link mixed models for ordinal data
+
+# -----------------------------------------------------------------------------------
+# Clear the workspace
+rm(list = ls())  # Remove all objects from memory to ensure a clean workspace
+
+# Set working directory to the folder containing experiment data
+setwd("")
+
+# -----------------------------------------------------------------------------------
+# Data Wrangling: Load and Prepare the Data
+# -----------------------------------------------------------------------------------
+
+# Load datasets for both experiments
+experiment1 <- read_csv("factorial_regression_input_1.csv")
+experiment2 <- read_csv("factorial_regression_input_2.csv")
+
+# Add experiment identifier column
+experiment1 <- experiment1 %>% mutate(experiment = "1")
+experiment2 <- experiment2 %>% mutate(experiment = "2")
+
+# Combine both datasets into one dataframe
+combined_data <- bind_rows(experiment1, experiment2)
+
+# Recode binary responses: 1 for "yes" (left), 0 for "no" (right)
+combined_data$binary_question_key_resp.keys <- ifelse(
+  combined_data$binary_question_key_resp.keys == "left", 1,
+  ifelse(combined_data$binary_question_key_resp.keys == "right", 0, NA)
+)
+
+# Ensure binary responses are numeric
+combined_data$binary_question_key_resp.keys <- as.numeric(combined_data$binary_question_key_resp.keys)
+
+# Convert categorical variables into factors and define reference levels
+combined_data <- combined_data %>%
+  mutate(
+    correlation = factor(correlation, levels = c("high", "low")),
+    interaction = factor(interaction, levels = c("present", "absent")),
+    experiment = factor(experiment, levels = c("1", "2")),   # Ensure experiment is a factor
+    ParticipantID = as.factor(ParticipantID)                 # Convert participant ID to factor
+  )
+
+# Save the cleaned dataset for further analysis
+write.csv(combined_data, "combined_regression_input.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Compute Descriptive Statistics: Mean "Yes" Responses
+# -----------------------------------------------------------------------------------
+
+# Load the cleaned dataset
+combined_data <- read.csv("combined_regression_input.csv")
+
+# Ensure binary responses are numeric
+combined_data$binary_question_key_resp.keys <- as.numeric(combined_data$binary_question_key_resp.keys)
+
+# Compute the mean "yes" response for each condition
+yes_means <- combined_data %>%
+  group_by(correlation, interaction, experiment) %>%
+  summarise(mean_yes_response = mean(binary_question_key_resp.keys, na.rm = TRUE)) %>%
+  ungroup()
+
+# Print results
+print(yes_means)
+
+# -----------------------------------------------------------------------------------
+# Binary Response Analysis: Mixed-Effects Logistic Regression
+# -----------------------------------------------------------------------------------
+
+# Fit a main-effects only logistic mixed model
+binary_model_main <- glmer(binary_question_key_resp.keys ~ correlation + interaction + experiment + (1 | ParticipantID),
+                           family = binomial, data = combined_data)
+
+# Fit a model including interaction terms
+binary_model_interaction <- glmer(binary_question_key_resp.keys ~ correlation * interaction * experiment + (1 | ParticipantID),
+                                  family = binomial, data = combined_data,
+                                  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 100000)))
+
+# Summarize the models
+summary(binary_model_main)
+summary(binary_model_interaction)
+
+# Perform post-hoc comparisons using estimated marginal means (EMMs)
+emm <- emmeans(binary_model_interaction, ~ correlation * interaction * experiment)
+comparisons_binary <- pairs(emm, adjust = "tukey")  # Tukey correction for multiple comparisons
+summary(comparisons_binary)
+
+# Pairwise contrasts for experiments
+comparison <- contrast(emm, method = "pairwise",
+                       by = c("correlation", "interaction"),
+                       levels = list(experiment = c("1", "2")))
+summary(comparison)
+
+# -----------------------------------------------------------------------------------
+# Response Time Analysis: Mixed-Effects Gamma Regression
+# -----------------------------------------------------------------------------------
+
+# Fit a main-effects only gamma regression model
+gamma_model_main <- glmer(binary_question_key_resp.rt ~ correlation + interaction + experiment + (1 | ParticipantID),
+                          family = Gamma(link = "log"), data = combined_data)
+
+# Fit a gamma regression model with interactions
+gamma_model_interaction <- glmer(binary_question_key_resp.rt ~ correlation * interaction * experiment + (1 | ParticipantID),
+                                 family = Gamma(link = "log"), data = combined_data)
+
+# Summarize the models
+summary(gamma_model_main)
+summary(gamma_model_interaction)
+
+# Post-hoc comparisons using estimated marginal means (EMMs)
+emm <- emmeans(gamma_model_interaction, ~ correlation * interaction * experiment)
+comparisons_gamma <- pairs(emm, adjust = "tukey")
+summary(comparisons_gamma)
+
+# Pairwise contrasts for experiments
+comparison <- contrast(emm, method = "pairwise",
+                       by = c("correlation", "interaction"),
+                       levels = list(experiment = c("1", "2")))
+summary(comparison)
+
+# -----------------------------------------------------------------------------------
+# Confidence Ratings Analysis: Ordinal Mixed-Effects Model
+# -----------------------------------------------------------------------------------
+
+# Convert confidence ratings to an ordered factor
+combined_data$slider_confidence.response <- factor(combined_data$slider_confidence.response, ordered = TRUE)
+
+# Fit a cumulative link mixed model (CLMM) with main effects
+ordinal_model_main <- clmm(slider_confidence.response ~ correlation + interaction + experiment + (1 | ParticipantID),
+                           data = combined_data)
+
+# Fit a CLMM with interaction terms
+ordinal_model_interaction <- clmm(slider_confidence.response ~ correlation * interaction * experiment + (1 | ParticipantID),
+                                  data = combined_data)
+
+# Summarize the models
+summary(ordinal_model_main)
+summary(ordinal_model_interaction)
+
+# Post-hoc comparisons for ordinal responses
+emm <- emmeans(ordinal_model_interaction, ~ correlation * interaction * experiment)
+comparisons_ordinal <- pairs(emm, adjust = "tukey")
+summary(comparisons_ordinal)
+
+# Pairwise contrasts for experiments
+comparison <- contrast(emm, method = "pairwise",
+                       by = c("correlation", "interaction"),
+                       levels = list(experiment = c("1", "2")))
+summary(comparison)
