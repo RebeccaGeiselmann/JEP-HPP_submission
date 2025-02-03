@@ -1,0 +1,170 @@
+## This script analyses whether the binary response (yes/no) predicts confidence
+
+# Load necessary libraries
+library(dplyr)      # Data manipulation
+library(readr)      # Reading CSV files
+library(tidyr)      # Data tidying
+library(ggplot2)    # Visualization
+library(lme4)       # Mixed-effects modeling
+library(ordinal)    # Ordinal regression models
+library(emmeans)    # Post-hoc comparisons
+
+# Set the working directory to the folder containing the participant files
+setwd("")
+
+# -------------------- Data Wrangling for Confidence Ratings --------------------
+
+# Read in the dataset containing all participants' responses (excluding outliers)
+all_participants_excl_outliers <- read_csv("")
+
+# Initialize an empty data frame for reshaped data
+regression_input <- data.frame()
+
+# Extract and reshape relevant columns for each participant
+for (i in 1:78) {
+  # Construct column names dynamically for each participant
+  participant_id_col <- paste0("ParticipantID_", i)
+  binary_resp_col <- paste0("binary_question_key_resp.keys_", i)
+  rt_col <- paste0("binary_question_key_resp.rt_", i)
+  confidence_col <- paste0("slider_confidence.response_", i)
+  condition_col <- paste0("condition_", i)
+  
+  # Check if the required columns exist in the dataset
+  if (all(c(participant_id_col, binary_resp_col, rt_col, confidence_col, condition_col) %in% colnames(all_participants_excl_outliers))) {
+    
+    # Extract the relevant columns and select rows 10 to 50 (inclusive)
+    participant_data <- all_participants_excl_outliers %>%
+      dplyr::select(!!rlang::sym(participant_id_col), !!rlang::sym(binary_resp_col), 
+                    !!rlang::sym(rt_col), !!rlang::sym(confidence_col), !!rlang::sym(condition_col)) %>%
+      dplyr::slice(9:48)  # Selecting the correct range of rows
+    
+    # Rename columns for consistency across participants
+    colnames(participant_data) <- c("ParticipantID", "binary_question_key_resp.keys", 
+                                    "binary_question_key_resp.rt", "slider_confidence.response", 
+                                    "condition")
+    
+    # Add a column to store participant index
+    participant_data$participant <- i
+    
+    # Append the reshaped data for this participant to the final dataset
+    regression_input <- bind_rows(regression_input, participant_data)
+  } else {
+    message("One or more columns are missing for participant ", i)
+  }
+}
+
+# Save the reshaped data as a CSV file
+write.csv(regression_input, "regression_input.csv", row.names = FALSE)
+
+# -------------------- Mixed Effects Logistic Regression --------------------
+
+# Read in the reshaped dataset
+regression_input <- read.csv("regression_input.csv")
+
+# Set reference levels for conditions (HSDP as the reference category)
+regression_input$condition <- relevel(factor(regression_input$condition), ref = "HSDP")
+
+# Recode binary responses: "left" = Yes (1), "right" = No (0)
+regression_input$binary_response <- ifelse(regression_input$binary_question_key_resp.keys == "left", 1, 
+                                           ifelse(regression_input$binary_question_key_resp.keys == "right", 0, NA))
+
+# Convert binary_response to a factor variable for ordinal regression
+regression_input$binary_response <- as.factor(regression_input$binary_response)
+
+# Remove rows with NA values
+regression_input <- na.omit(regression_input)
+
+# Convert confidence ratings to an ordered factor for ordinal regression
+regression_input$slider_confidence.response <- factor(regression_input$slider_confidence.response, ordered = TRUE)
+
+# Fit an ordinal regression model (CLM) without random effects
+ordinal_regression_model_standard <- clm(slider_confidence.response ~ binary_response * condition, 
+                                         data = regression_input)
+
+# Print summary of the standard ordinal regression model
+summary(ordinal_regression_model_standard)
+
+# Fit a cumulative link mixed model (CLMM) with participant as a random effect
+ordinal_mixed_model <- clmm(slider_confidence.response ~ binary_response * condition + (1 | participant), 
+                            data = regression_input)
+
+# Alternative CLMM with increased iteration and tolerance settings
+ordinal_mixed_model <- clmm(slider_confidence.response ~ binary_response * condition + (1 | participant),
+                            data = regression_input,
+                            control = clmm.control(maxIter = 10000, gradTol = 1e-5))
+
+# Fit a CLMM without interaction terms
+ordinal_mixed_model_no_interaction <- clmm(slider_confidence.response ~ binary_response + condition + (1 | participant), 
+                                           data = regression_input)
+
+# Print summaries of the models
+summary(ordinal_mixed_model)
+summary(ordinal_mixed_model_no_interaction)
+
+# Perform pairwise comparisons using estimated marginal means (EMMs)
+emm <- emmeans(ordinal_mixed_model, ~ binary_response * condition)
+comparisons_ordinal_mixed <- emm %>% pairs(adjust = "tukey")
+
+# Print pairwise comparisons
+summary(comparisons_ordinal_mixed)
+
+
+# -------------------- Compute Response Distributions --------------------
+
+# Compute the distribution of Yes/No responses per condition
+distribution_per_condition <- regression_input %>%
+  group_by(condition, binary_response) %>%
+  summarise(count = n()) %>%
+  spread(binary_response, count, fill = 0) %>%
+  rename(No = `0`, Yes = `1`) %>%
+  mutate(Total = Yes + No)
+
+# Compute the overall distribution of Yes/No responses
+overall_distribution <- regression_input %>%
+  group_by(binary_response) %>%
+  summarise(count = n()) %>%
+  spread(binary_response, count, fill = 0) %>%
+  rename(No = `0`, Yes = `1`) %>%
+  mutate(Total = Yes + No)
+
+# Print the distributions
+print("Distribution of Yes/No responses per condition:")
+print(distribution_per_condition)
+
+print("Overall distribution of Yes/No responses in the experiment:")
+print(overall_distribution)
+
+# -------------------- Visualization --------------------
+
+# Recode condition into synchrony and directed motion categories
+reshaped_data <- reshaped_data %>%
+  mutate(
+    synchrony = ifelse(grepl("HS", condition), "High", "Low"),
+    directed_motion = ifelse(grepl("DP$", condition), "Present", "Absent")
+  )
+
+# Compute mean confidence ratings with standard errors and confidence intervals
+mean_confidence_by_factor <- reshaped_data %>%
+  group_by(synchrony, directed_motion, binary_response) %>%
+  summarise(
+    mean_confidence = mean(confidence, na.rm = TRUE),
+    se_confidence = sd(confidence, na.rm = TRUE) / sqrt(n()),
+    lower_ci = mean_confidence - qt(0.975, df = n() - 1) * se_confidence,
+    upper_ci = mean_confidence + qt(0.975, df = n() - 1) * se_confidence
+  ) %>%
+  ungroup()
+
+# Generate a point plot for confidence ratings with synchrony and directed motion
+p_confidence_points <- ggplot(mean_confidence_by_factor, aes(x = synchrony, y = mean_confidence, color = directed_motion, shape = binary_response)) +
+  geom_point(size = 3, position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.5)) +
+  scale_shape_manual(values = c("Yes" = 16, "No" = 17)) +  # Different shapes for responses
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  # Different colors for motion
+  labs(x = "Synchrony", y = "Mean Confidence", color = "Directed Motion", shape = "Response") +
+  theme_minimal()
+
+# Save the plot
+ggsave("mean_confidence_point_plot_with_synchrony_and_motion_and_responses.png", plot = p_confidence_points, width = 10, height = 6)
+
+# Display the plot
+print(p_confidence_points)
