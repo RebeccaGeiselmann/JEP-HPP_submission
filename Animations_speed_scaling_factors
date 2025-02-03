@@ -17,6 +17,7 @@ import numpy as np
 print("Current working directory:", os.getcwd())
 
 # List of input file paths containing trajectory data for different trial types
+# These files are generated in the script: "Animations"
 file_paths = [
     # Type 1 files
     'dots_00_type1.0_seed0.csv', 'dots_01_type1.0_seed0.csv', ..., 'dots_09_type1.0_seed0.csv',
