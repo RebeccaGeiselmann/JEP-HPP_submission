@@ -17,7 +17,7 @@ library(ggplot2)
 ## -------------------- Power Analysis for Binary Response (Yes/No) --------------------
 
 # Load dataset containing responses from the pilot experiment
-regression_input <- read_csv("factorial_regression_input.csv")
+regression_input <- read_csv("")
 
 # Recode binary responses: 'left' -> 1, 'right' -> 0
 regression_input$binary_question_key_resp.keys_1 <- ifelse(
@@ -63,7 +63,7 @@ simulate_power <- function(n) {
     levels(extended_model@frame$interaction) <- levels(regression_input$interaction)
     
     # Run power analysis for the interaction effect
-    power_result <- powerSim(extended_model, fixed("correlationlow:interactionabsent"), nsim = 100)
+    power_result <- powerSim(extended_model, fixed("correlationlow:interactionabsent"), nsim = 500)
     
     print(power_result)
     return(power_result)
@@ -113,33 +113,71 @@ if (length(successful_results) > 0) {
 
 ## -------------------- Power Analysis for Response Times --------------------
 
-# Reload dataset
-regression_input <- read_csv("factorial_regression_input.csv")
+# Load dataset containing responses from the pilot experiment
+regression_input <- read_csv("")
 
-# Ensure participant and independent variables are factors
+# Ensure variables are correctly formatted
 regression_input$participant <- as.factor(regression_input$participant)
 regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
 regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
 
-# Check data structure
-str(regression_input)
-
 # Fit a mixed-effects Gamma regression model for response times
 gamma_model_mixed <- glmer(binary_question_key_resp.rt_1 ~ correlation * interaction + (1 | participant),
-                           family = Gamma(link = "log"), data = regression_input)
+                           family = Gamma(link = "log"), 
+                           data = regression_input,
+                           control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5)))  # Stability fix
 
-# Summarize model results
+# Summarize the model results
 summary(gamma_model_mixed)
 
+# Identify correct fixed effect name dynamically
+fixed_effects_names <- names(fixef(gamma_model_mixed))
+print(fixed_effects_names)  # Check available effect names for powerSim()
 
+# Function for power simulation 
+simulate_power_rt <- function(n) {
+  tryCatch({
+    # Extend the model to simulate power at `n` participants
+    extended_model <- extend(gamma_model_mixed, along = "participant", n = n)
+    
+    # Ensure factor levels are properly set
+    levels(extended_model@frame$correlation) <- levels(regression_input$correlation)
+    levels(extended_model@frame$interaction) <- levels(regression_input$interaction)
+    
+    # Perform power simulation
+    power_result <- powerSim(extended_model, fixed(fixed_effects_names[2]), nsim = 500)  # Use correct fixed effect
+    
+    print(power_result)
+    return(power_result)
+  }, error = function(e) {
+    cat("Error in simulation for sample size", n, ":", e$message, "\n")
+    return(NULL)
+  })
+}
+
+# Run power simulations for response times
+power_results <- lapply(sample_sizes, simulate_power_rt)
+
+# Extract and visualize power estimates
+successful_results_rt <- power_results_rt[!sapply(power_results_rt, is.null)]
+if (length(successful_results_rt) > 0) {
+  power_estimates_rt <- sapply(successful_results_rt, function(x) if (!is.null(x)) x$x / x$n else NA)
+  
+  # Create data frame for plotting
+  power_data_rt <- data.frame(sample_size = sample_sizes[!sapply(power_results_rt, is.null)], power = power_estimates_rt)
+
+  # Plot power curve
+  ggplot(power_data_rt, aes(x = sample_size, y = power)) +
+    geom_line() +
+    geom_point() +
+    labs(title = "Power Analysis for Response Times", x = "Sample Size", y = "Power") +
+    theme_minimal()
+}
 
 ## -------------------- Power Analysis for Confidence Ratings --------------------
 
 # Since the `simr` package does not directly support cumulative link mixed models (clmm),
 # we use a custom simulation approach.
-
-# Reload dataset
-regression_input <- read_csv("factorial_regression_input.csv")
 
 # Ensure participant and independent variables are factors
 regression_input$participant <- as.factor(regression_input$participant)
