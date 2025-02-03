@@ -4,7 +4,7 @@
 # 1. Reads movement data from multiple CSV files (grouped by trial types: 1, 4, 5, and 8).
 # 2. Computes displacement (dx, dy) and calculates speed for both discs using the Euclidean distance formula.
 # 3. Generates summary statistics for each experimental condition, computing the mean speed per disc.
-# 4. Determines scaling factors to normalize movement speeds across conditions for experimental consistency.
+# 4. Determines scaling factors to normalize movement speeds across conditions for experimental consistency in the "Animations" script
 
 # This script is useful for post-processing movement trajectories, ensuring that speeds are standardized 
 # across experimental conditions before generating visual animations.
