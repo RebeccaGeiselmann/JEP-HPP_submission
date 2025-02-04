@@ -16,7 +16,10 @@ SCRIPT TO SCALE SPEED DIFFERENCES BETWEEN ANIMATIONS
 # In the original animations, conditions with higher cross-correlation/synchrony tend to be faster. 
 # Scaling corrects for this to maintain comparability.
 
-
+# Type 1: Low synchrony - directed motion present
+# Type 2: High synchrony - directed motion present
+# Type 5: Low synchrony - directed motion absent
+# Type 8: High synchrony - directed motion absent
 
 # -----------------------------------------------------------------------------------
 Load required packages
@@ -29,9 +32,6 @@ import numpy as np
 # -----------------------------------------------------------------------------------
 Main script
 # -----------------------------------------------------------------------------------
-
-# Print the current working directory
-print("Current working directory:", os.getcwd())
 
 # List of input file paths containing trajectory data for different trial types
 # These files are generated in the script "Animations"
