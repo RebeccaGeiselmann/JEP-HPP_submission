@@ -1,6 +1,7 @@
 # -----------------------------------------------------------------------------------
-# Script for Processing and Summarizing Demographic Data
+# SCRIPT FOR PROCESSING AND SUMMARIZING DEMOGRAPHIC DATA
 # -----------------------------------------------------------------------------------
+
 # This script processes participant demographic data from the two experiments, excluding outliers.
 # It performs the following tasks:
 #   1) Loads the dataset and selects relevant demographic variables
@@ -21,6 +22,7 @@ library(dplyr)
 setwd("")
 
 # Load the dataset, ensuring strings are not automatically converted to factors
+# The following script only shows the analysis of experiment 1 (chase)
 data <- read.csv("", stringsAsFactors = FALSE)
 
 # -----------------------------------------------------------------------------------
@@ -39,7 +41,7 @@ new_data <- data %>%
   )
 
 # Save the cleaned dataset with selected demographic variables
-write.csv(new_data, "Motion_perception_chase_confidence_demographics.csv", row.names = FALSE)
+write.csv(new_data, "Motion_perception_chase_demographics.csv", row.names = FALSE)
 
 # -----------------------------------------------------------------------------------
 # Count and Format Gender Data
@@ -171,7 +173,7 @@ demographics_table <- data.frame(
 )
 
 # Save the final demographics table to a CSV file
-write.csv(demographics_table, "Demographics_Summary_Table.csv", row.names = FALSE)
+write.csv(demographics_table, "Demographics_Summary_Table_Chase.csv", row.names = FALSE)
 
 # Print the summary table for review
 print(demographics_table)
