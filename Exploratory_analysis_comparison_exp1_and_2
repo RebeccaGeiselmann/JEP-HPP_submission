@@ -1,7 +1,8 @@
------------------------------------------------------------------------------------
-# Script for Comparing Experiment 1 and Experiment 2
 # -----------------------------------------------------------------------------------
-# This script analyzes the differences between two behavioral experiments.
+# SCRIPT COMPARING EXPERIMENT 1 AND 2
+# -----------------------------------------------------------------------------------
+
+# This script analyzes the differences between experiment 1 and 2.
 # It performs data wrangling, computes descriptive statistics, and runs 
 # mixed-effects models for three dependent variables:
 #   1) Binary responses (Yes/No)
@@ -10,7 +11,10 @@
 # Post-hoc comparisons are also conducted using estimated marginal means (emmeans).
 # -----------------------------------------------------------------------------------
 
-# Load required libraries
+# -----------------------------------------------------------------------------------
+# Load Required Libraries
+# -----------------------------------------------------------------------------------
+
 library(dplyr)      # Data manipulation
 library(readr)      # Reading CSV files
 library(lme4)       # Mixed-effects models (binary and gamma regression)
@@ -18,15 +22,14 @@ library(emmeans)    # Post-hoc analysis
 library(ordinal)    # Cumulative link mixed models for ordinal data
 
 # -----------------------------------------------------------------------------------
+# Data Wrangling: Load and Prepare the Data
+# -----------------------------------------------------------------------------------
+
 # Clear the workspace
 rm(list = ls())  # Remove all objects from memory to ensure a clean workspace
 
 # Set working directory to the folder containing experiment data
 setwd("")
-
-# -----------------------------------------------------------------------------------
-# Data Wrangling: Load and Prepare the Data
-# -----------------------------------------------------------------------------------
 
 # Load datasets for both experiments
 experiment1 <- read_csv("factorial_regression_input_1.csv")
