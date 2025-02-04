@@ -1,13 +1,24 @@
-# This script processes trajectory data containing the X and Y coordinates
-# from the two moving discs across the different experimental conditions. The script performs the following steps:
+# -----------------------------------------------------------------------------------
+SCRIPT TO SCALE SPEED DIFFERENCES BETWEEN ANIMATIONS
+# -----------------------------------------------------------------------------------
 
-# 1. Reads movement data from multiple CSV files (grouped by trial types: 1, 4, 5, and 8).
-# 2. Computes displacement (dx, dy) and calculates speed for both discs using the Euclidean distance formula.
-# 3. Generates summary statistics for each experimental condition, computing the mean speed per disc.
-# 4. Determines scaling factors to normalize movement speeds across conditions for experimental consistency in the "Animations" script
+# This script processes trajectory data containing X and Y coordinates 
+# of two moving discs across different experimental conditions. It performs the following steps:
+# 1. Reads movement data from multiple CSV files, categorized by trial types (1, 4, 5, and 8).
+# 2. Computes displacement (dx, dy) and speed for both discs using the Euclidean distance formula.
+# 3. Computes summary statistics, including mean speed per disc per condition.
+# 4. Normalizes movement speeds across conditions using scaling factors to ensure experimental consistency 
+#    in the "Animations" script.
 
-# This script is useful for post-processing movement trajectories, ensuring that speeds are standardized 
-# across experimental conditions before generating visual animations.
+# Purpose:
+# This script standardizes movement trajectories for post-processing, ensuring that speed differences 
+# across conditions do not introduce unintended experimental artifacts.
+# In the original animations, conditions with higher cross-correlation/synchrony tend to be faster. 
+# Scaling corrects for this to maintain comparability.
+
+# -----------------------------------------------------------------------------------
+Load required 
+# -----------------------------------------------------------------------------------
 
 import os
 import pandas as pd
@@ -17,7 +28,7 @@ import numpy as np
 print("Current working directory:", os.getcwd())
 
 # List of input file paths containing trajectory data for different trial types
-# These files are generated in the script: "Animations"
+# These files are generated in the script "Animations"
 file_paths = [
     # Type 1 files
     'dots_00_type1.0_seed0.csv', 'dots_01_type1.0_seed0.csv', ..., 'dots_09_type1.0_seed0.csv',
