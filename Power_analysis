@@ -1,8 +1,16 @@
-# This script runs power analyses for two experiments based on data from a pilot study.
+# -----------------------------------------------------------------------------------
+# SCRIPT FOR POWER ANALYSIS OF THE TWO EXPERIMENTS
+# -----------------------------------------------------------------------------------
+
+# This script runs power analyses for the two experiments based on data from a pilot study.
 # Power analyses are performed on three dependent variables:
 # 1) Binary response (yes/no) 
 # 2) Response times
 # 3) Confidence ratings
+
+# -----------------------------------------------------------------------------------
+# Load Required Libraries
+# -----------------------------------------------------------------------------------
 
 # Load necessary libraries
 install.packages("lme4")  # For mixed-effects models
@@ -14,7 +22,9 @@ library(ordinal)
 install.packages("ggplot2")  # For visualization
 library(ggplot2)
 
-## -------------------- Power Analysis for Binary Response (Yes/No) --------------------
+# -----------------------------------------------------------------------------------
+# Power Analysis for Binary Response (Yes/No)
+# -----------------------------------------------------------------------------------
 
 # Load dataset containing responses from the pilot experiment
 regression_input <- read_csv("")
@@ -52,6 +62,10 @@ fixed_effects <- fixef(binary_model_mixed)
 odds_ratios <- exp(fixed_effects)
 print(odds_ratios)
 
+# -----------------------------------------------------------------------------------
+# Function to Simulate Power for Different Sample Sizes
+# -----------------------------------------------------------------------------------
+
 # Define a function to simulate power at different sample sizes
 simulate_power <- function(n) {
   tryCatch({
@@ -73,6 +87,10 @@ simulate_power <- function(n) {
   })
 }
 
+# -----------------------------------------------------------------------------------
+# Run Power Simulations for Sample Sizes from 30 to 110 (Step 10)
+# -----------------------------------------------------------------------------------
+
 # Run power simulations for sample sizes between 30 and 110 (in steps of 10)
 sample_sizes <- seq(30, 110, by = 10)
 power_results <- lapply(sample_sizes, simulate_power)
@@ -92,7 +110,7 @@ if (length(successful_results) > 0) {
   
   successful_sample_sizes <- sample_sizes[!sapply(power_results, is.null)]
   
-  # Debug: Print power estimates
+  # Print power estimates
   print("Power estimates:")
   print(power_estimates)
   
@@ -111,7 +129,9 @@ if (length(successful_results) > 0) {
   cat("No successful power simulations. Check the model and simulation setup.\n")
 }
 
-## -------------------- Power Analysis for Response Times --------------------
+# -----------------------------------------------------------------------------------
+# Power Analysis for Response Times (RT)
+# -----------------------------------------------------------------------------------
 
 # Load dataset containing responses from the pilot experiment
 regression_input <- read_csv("")
@@ -135,7 +155,7 @@ fixed_effects_names <- names(fixef(gamma_model_mixed))
 print(fixed_effects_names)  # Check available effect names for powerSim()
 
 # Function for power simulation 
-simulate_power_rt <- function(n) {
+simulate_power <- function(n) {
   tryCatch({
     # Extend the model to simulate power at `n` participants
     extended_model <- extend(gamma_model_mixed, along = "participant", n = n)
@@ -145,7 +165,7 @@ simulate_power_rt <- function(n) {
     levels(extended_model@frame$interaction) <- levels(regression_input$interaction)
     
     # Perform power simulation
-    power_result <- powerSim(extended_model, fixed(fixed_effects_names[2]), nsim = 500)  # Use correct fixed effect
+    power_result <- powerSim(extended_model, fixed(fixed_effects_names[2]), nsim = 500)  
     
     print(power_result)
     return(power_result)
@@ -154,6 +174,10 @@ simulate_power_rt <- function(n) {
     return(NULL)
   })
 }
+
+# -----------------------------------------------------------------------------------
+# Run Power Simulations for Sample Sizes from 30 to 110 (Step 10)
+# -----------------------------------------------------------------------------------
 
 # Run power simulations for response times
 power_results <- lapply(sample_sizes, simulate_power_rt)
@@ -174,7 +198,9 @@ if (length(successful_results_rt) > 0) {
     theme_minimal()
 }
 
-## -------------------- Power Analysis for Confidence Ratings --------------------
+# -----------------------------------------------------------------------------------
+# Power Analysis for Confidence Ratings (Ordinal Regression)
+# -----------------------------------------------------------------------------------
 
 # Since the `simr` package does not directly support cumulative link mixed models (clmm),
 # we use a custom simulation approach.
@@ -201,6 +227,10 @@ summary(ordinal_model_mixed)
 fixed_effects <- coef(ordinal_model_mixed)
 print(fixed_effects)
 
+# -----------------------------------------------------------------------------------
+# Function to Simulate Power at Different Sample Sizes
+# -----------------------------------------------------------------------------------
+
 # Define a function to simulate power at different sample sizes for ordinal regression
 simulate_power <- function(n, original_data) {
   tryCatch({
@@ -222,6 +252,10 @@ simulate_power <- function(n, original_data) {
     return(NA)
   })
 }
+
+# -----------------------------------------------------------------------------------
+# Run Power Simulations for Sample Sizes from 30 to 110 (Step 10)
+# -----------------------------------------------------------------------------------
 
 # Run simulations for ordinal regression power analysis
 sample_sizes <- seq(30, 110, by = 10)
