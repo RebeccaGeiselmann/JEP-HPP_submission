@@ -1,207 +1,282 @@
-####################################################################################
-# ANALYSES OF 1ST AND 2ND EXPERIMENTS INCLUDING OUTLIERS
-####################################################################################
-# This script analyzes data from two experiments, including outliers.
-#
-# In contrast to the analyses that exclude outliers, this version also incorporates:
-# - Participants who have at least 25% of their responses below 800ms.
-# - Participants whose long-string index exceeds a predefined threshold.
-# - Individual responses with reaction times below 800ms (for purpose response) or 300ms (for confidence ratings).
-# - Responses where reaction times for both purpose response and confidence ratings fall outside the whiskers of a boxplot.
-#
-# The goal is to assess the impact of including these participants and responses on the results.
-####################################################################################
+##### This script analyses the 3rd and 4th experiment of the moving discs study with outliers included ##### 
+#  This includes: 
+# - Participants with 25% of responses below 800ms
+# - Participants whose longstring index is above the threshold
+# - Individual responses below 800ms for the purpose response and 300ms for the confidence ratings
+# - Responses whose response times for both purpose response and confidence ratings fall outside of the whiskers of a boxplot
 
-# ---------------------------------------------------------------------------------
-# INSTALL AND LOAD REQUIRED PACKAGES
-# ---------------------------------------------------------------------------------
-
-# Install necessary packages (only required if not already installed)
-install.packages("readr")    # For reading CSV files
-install.packages("dplyr")    # For data manipulation
-install.packages("tidyr")    # For data tidying
-install.packages("ggplot2")  # For data visualization
-install.packages("stringr")  # For string manipulation
-install.packages("lme4")     # For mixed-effects regression models
-install.packages("emmeans")  # For post-hoc comparisons
-install.packages("ordinal")  # For ordinal regression models
-install.packages("gridExtra")
-
-# Load libraries
+# Install and load required packages for data processing, visualization, and statistical analysis
+install.packages("readr") # For reading CSV files
 library(readr)
+install.packages("dplyr") # For data manipulation
 library(dplyr)
+install.packages("tidyr") # For data tidying
 library(tidyr)
+install.packages("ggplot2") # For data visualization
 library(ggplot2)
+install.packages("stringr") # For string manipulation
 library(stringr)
+install.packages("lme4") # For linear and generalized linear mixed models
 library(lme4)
-library(emmeans)
-library(ordinal)
+install.packages("emmeans") # For post-hoc comparisons
+library(emmeans) 
+install.packages("ordinal") # For ordinal regression models
+library(ordinal)  
+install.packages("gridExtra") # For arranging multiple plots in a grid
 library(gridExtra)
 
-# ---------------------------------------------------------------------------------
-# CLEAR WORKSPACE AND SET WORKING DIRECTORY
-# ---------------------------------------------------------------------------------
+# Data-wrangling original data ---------------------------------------------------------------
 
-# Clear all objects from the workspace
+# Data-wrangling original data ---------------------------------------------------------------
+
+# Clear the workspace to remove any existing variables
 rm(list = ls())
 
-# Set the working directory for the experiment data (update paths accordingly)
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/incl_outliers")
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/incl_outliers")
+# Set the working directory to the folder containing the participant files
+setwd("") # Specify the correct path here
+setwd("") # Specify the correct path here
 
-# ---------------------------------------------------------------------------------
-# LOAD PARTICIPANT DATA (INCLUDE OUTLIERS)
-# ---------------------------------------------------------------------------------
+# Generate a list of file names for participants in the 3rd experiment
+participant_files_3rd <- paste0("P", 1:79, ".csv")
 
-# Define participant file names for each experiment
-participant_files_3rd <- paste0("P", 1:79, ".csv")  # 3rd experiment
-participant_files_4th <- paste0("P", 1:88, ".csv")  # 4th experiment
+# Generate a list of file names for participants in the 4th experiment
+participant_files_4th <- paste0("P", 1:88, ".csv")
 
-# Initialize a list to store data frames for each participant
+# Initialize an empty list to store data frames for each participant
 original_data <- list()
-max_rows <- 0  # Variable to track the maximum number of rows across all datasets
 
-# Loop through each file, read the data, and update max_rows
-for (file in participant_files_4th) {
-  data <- read_csv(file)
-  print(paste("Reading file:", file))
-  max_rows <- max(max_rows, nrow(data))  # Track the longest dataset
-  original_data[[length(original_data) + 1]] <- data
+# Initialize a variable to track the maximum number of rows across all data frames
+max_rows <- 0
+
+# Loop through each file, read the data, and update max_rows to ensure alignment across datasets
+for (file in participant_files_3rd) {  # Adjust for 3rd or 4th experiment accordingly
+  data <- read_csv(file) # Read the CSV file
+  print(paste("Reading file:", file)) # Print file being read
+  max_rows <- max(max_rows, nrow(data)) # Track the maximum row count across datasets
+  original_data[[length(original_data) + 1]] <- data # Store the data in a list
 }
 
-# ---------------------------------------------------------------------------------
-# COMBINE ALL PARTICIPANTS INTO A SINGLE DATA FRAME (INCL. OUTLIERS)
-# ---------------------------------------------------------------------------------
-
+# Initialize an empty data frame to store combined data for all participants, including outliers
 all_participants_incl_outliers <- data.frame()
 
-# Process and align participant data into a combined dataset
-for (i in seq_along(original_data)) {
+# Loop through each participant's data frame
+for (i in 1:length(original_data)) {
   data <- original_data[[i]]
-
-  # Fill shorter datasets with NA values
+  
+  # Ensure the data has max_rows rows, filling with NAs if not
   if (nrow(data) < max_rows) {
     needed <- max_rows - nrow(data)
     na_data <- as.data.frame(matrix(NA, ncol = ncol(data), nrow = needed))
     colnames(na_data) <- colnames(data)
-    data <- rbind(data, na_data)
+    data <- rbind(data, na_data) # Append NA rows to match max_rows
   }
-
-  # Select relevant columns for analysis
-  selected_data <- data %>% dplyr::select(ParticipantID, workerId, 
-                                          binary_question_key_resp.keys, binary_question_key_resp.rt, 
-                                          slider_confidence.response, slider_confidence.rt, 
-                                          condition, movie1)
   
-  # Rename columns to avoid name clashes
+  # Select the columns of interest
+  selected_data <- data[c('ParticipantID', 'workerId', 'binary_question_key_resp.keys', 'binary_question_key_resp.rt', 'slider_confidence.response', 'slider_confidence.rt', 'condition', 'movie1')]
+  
+  # Rename columns to avoid name clashes when merging datasets
   colnames(selected_data) <- paste0(colnames(selected_data), "_", i)
-
-  # Merge into final dataset
-  if (ncol(all_participants_incl_outliers) == 0) {
+  
+  # Append the processed data to the final combined dataset
+  if(ncol(all_participants_incl_outliers) == 0) {
     all_participants_incl_outliers <- selected_data
   } else {
     all_participants_incl_outliers <- cbind(all_participants_incl_outliers, selected_data)
   }
 }
 
-# Save the combined dataset
+# Save the final data frame (named all_participants_incl_outliers) to a CSV file
 write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
 
-# ---------------------------------------------------------------------------------
-# DATA PREPARATION FOR REGRESSION ANALYSIS
-# ---------------------------------------------------------------------------------
+## Regression Data-wrangling ---------------------------------------------------
 
 # Read in the combined dataset
 all_participants_incl_outliers <- read_csv("all_participants_incl_outliers.csv")
 
-# Initialize a new data frame to reshape the data
+# Initialize an empty dataframe to store the reshaped data for regression analysis
 regression_input <- data.frame()
 
-# Reshape dataset: extract each participant's data and prepare for analysis
+# Loop through each participant and restructure the dataset for regression modeling (loops have to be adjusted to number of participants)
 for (i in 1:88) {
+  # Generate column names dynamically for each participant
   participant_columns <- c(paste0("ParticipantID_", i), paste0("binary_question_key_resp.keys_", i), 
                            paste0("binary_question_key_resp.rt_", i), paste0("slider_confidence.response_", i), 
                            paste0("condition_", i))
-
+  
+  # Select only the relevant columns for each participant and subset the required rows
   participant_data <- all_participants_incl_outliers %>%
     dplyr::select(all_of(participant_columns)) %>%
-    dplyr::slice(9:48)  # Keep responses between rows 9-48
-
-  # Rename columns for consistency
+    dplyr::slice(9:48)  # Selecting rows 9 to 48 (since indices are inclusive)
+  
+  # Rename columns to remove the participant index and make them consistent across participants
   colnames(participant_data) <- c("ParticipantID", "binary_question_key_resp.keys", 
                                   "binary_question_key_resp.rt", "slider_confidence.response", 
                                   "condition")
-
-  participant_data$participant <- i  # Assign participant ID
+  
+  # Add a column to indicate the participant number
+  participant_data$participant <- i
+  
+  # Append the data for the current participant to the reshaped dataset
   regression_input <- bind_rows(regression_input, participant_data)
 }
 
-# Save the reshaped data for regression analysis
+# View the resulting reshaped dataframe
+print(regression_input)
+
+# Save the structured regression input dataset to a CSV file
 write.csv(regression_input, "regression_input.csv", row.names = FALSE)
 
-# ---------------------------------------------------------------------------------
-# BINARY RESPONSE
-# ---------------------------------------------------------------------------------
+## Mixed effects regression binary response (factorial design) -------------------------
 
-# Load the regression input dataset
+# Read your original dataset
 regression_input <- read.csv("regression_input.csv")
 
-# Recode binary responses: Left = 1, Right = 0
-regression_input$binary_question_key_resp.keys <- ifelse(
-  regression_input$binary_question_key_resp.keys == "left", 1,
-  ifelse(regression_input$binary_question_key_resp.keys == "right", 0, NA)
-)
-
-# Convert binary responses to factors
-regression_input$binary_question_key_resp.keys <- as.factor(regression_input$binary_question_key_resp.keys)
-
-# Define experimental factors
+# Create the CrossCorrelation column based on condition labels
 regression_input$correlation <- ifelse(grepl("HS", regression_input$condition), "high", "low")
+
+# Create the Interaction column based on condition labels
 regression_input$interaction <- ifelse(grepl("DA$", regression_input$condition), "absent", "present")
 
-# Convert categorical variables to factors
-regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
-regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
+# Convert new columns to factors with explicit levels to avoid unexpected level order issues
+regression_input$correlation <- as.factor(regression_input$correlation)
+regression_input$interaction <- as.factor(regression_input$interaction)
 
-# Fit mixed-effects logistic regression model
+# Save the updated dataframe
+write.csv(regression_input, "factorial_regression_input.csv", row.names = FALSE)
+
+# Load the regression input data
+regression_input <- read_csv("factorial_regression_input.csv")  
+
+# Recode binary responses: 'left' = 1, 'right' = 0, handle NAs appropriately
+# left = 1; right = 0; handle NAs
+regression_input$binary_question_key_resp.keys <- ifelse(
+  regression_input$binary_question_key_resp.keys == "left", "1",
+  ifelse(regression_input$binary_question_key_resp.keys == "right", "0", NA)
+)
+
+# Check if the recoding was successful and view a summary
+summary(regression_input$binary_question_key_resp.keys)
+
+# Print the updated dataframe
+print (regression_input)
+
+# Convert binary responses to factor
+regression_input$binary_question_key_resp.keys <- as.factor(regression_input$binary_question_key_resp.keys)
+
+# Set reference levels for factors
+# Sets "high" as the reference level for correlation and "present" as the reference level for interaction
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent")) 
+
+# Fit a mixed-effects logistic regression model with interaction terms
+# Specify control settings if you're having convergence issues, otherwise, this might be optional
+# control <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1000))
+# control <- glmerControl(optimizer = "nloptwrap")
+
 binary_model_mixed <- glmer(binary_question_key_resp.keys ~ correlation * interaction + (1 | participant),
                             family = binomial, data = regression_input)
 
-# Summary of logistic regression results
+# Fit a mixed-effects logistic regression model without interaction terms
+binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.keys ~ correlation + interaction + (1 | participant),
+                            family = binomial, data = regression_input)
+
+# Fit a logistic regression model with interaction terms (without mixed-effects)
+binary_model_standard <- glm(binary_question_key_resp.keys ~ correlation * interaction, 
+                             family = binomial, data = regression_input)
+
+
+# Summarize the model results
 summary(binary_model_mixed)
+summary(binary_model_mixed_no_interaction)
+summary(binary_model_standard) 
 
-# Perform post-hoc pairwise comparisons
+# Perform post-hoc comparisons using the emmeans package
 emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
-comparisons_binary <- pairs(emm, adjust = "tukey")
-summary(comparisons_binary)
+comparisons_binary_mixed<- pairs(emm)
 
-# ---------------------------------------------------------------------------------
-# REACTION TIMES
-# ---------------------------------------------------------------------------------
+emm <- emmeans(binary_model_standard, ~ correlation * interaction)
+comparisons_binary_standard<- pairs(emm)
 
-# Convert reaction times to numeric values
+# Print the pairwise comparisons
+summary(comparisons_binary_mixed)
+summary(comparisons_binary_standard)
+
+# Mixed effects regression RT (factorial design)--------------------------------
+
+# Read the dataset
+regression_input <- read.csv("factorial_regression_input.csv")
+
+# Convert reaction times to numeric
 regression_input$binary_question_key_resp.rt <- as.numeric(regression_input$binary_question_key_resp.rt)
+
+# Set reference levels for factors
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
 
 # Remove rows with zero reaction times
 regression_input <- regression_input[regression_input$binary_question_key_resp.rt > 0, ]
 
-# Fit mixed-effects Gamma regression model
-gamma_model_mixed <- glmer(binary_question_key_resp.rt ~ correlation * interaction + (1 | participant), 
-                           family = Gamma(link = "log"), 
-                           data = regression_input,
-                           control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5)))
+# Fit a mixed-effects linear regression model for reaction times with interaction
+gamma_regression_model_mixed <- glmer(binary_question_key_resp.rt ~ correlation * interaction + (1 | participant), 
+family = Gamma(link = "log"), data = regression_input)
 
-summary(gamma_model_mixed)
+# Fit a mixed-effects linear regression model for reaction times without interaction
+gamma_regression_model_mixed_no_interaction <- glmer(binary_question_key_resp.rt ~ correlation + interaction + (1 | participant), 
+                                      family = Gamma(link = "log"), data = regression_input)
+# Fit a logistic regression model with interaction terms (without mixed-effects)
+gamma_regression_model_standard <- glm(binary_question_key_resp.rt ~ correlation * interaction, 
+                                       family = Gamma(link = "log"), data = regression_input)
 
-# ---------------------------------------------------------------------------------
-# CONFIDENCE RATINGS
-# ---------------------------------------------------------------------------------
+# Summarize the model results
+summary(gamma_regression_model_mixed)
+summary(gamma_regression_model_mixed_no_interaction)
+summary(gamma_regression_model_standard)
+
+# Perform post-hoc comparisons using the emmeans package
+emm <- emmeans(gamma_regression_model_mixed, ~ correlation * interaction)
+comparisons_gamma_mixed <- pairs(emm, adjust = "tukey")
+
+emm <- emmeans(gamma_regression_model_standard, ~ correlation * interaction)
+comparisons_gamma_standard <- pairs(emm, adjust = "tukey")
+
+# Print the pairwise comparisons
+summary(comparisons_gamma_mixed)
+summary(comparisons_gamma_standard)
+
+# Mixed effects regression confidence (factorial design) ----------------------
+
+# Read the updated dataset
+regression_input <- read.csv("factorial_regression_input.csv")
 
 # Convert confidence ratings to an ordered factor
-regression_input$slider_confidence.response <- factor(regression_input$slider_confidence.response, ordered = TRUE)
+regression_input$slider_confidence.response<- factor(regression_input$slider_confidence.response, ordered = TRUE)
 
-# Fit a cumulative link mixed model
-ordinal_model_mixed <- clmm(slider_confidence.response ~ correlation * interaction + (1 | participant),
-                            data = regression_input)
+# Set reference levels for factors
+regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
 
-summary(ordinal_model_mixed)
+# Fit a cumulative link model (CLM) for ordinal responses without interaction terms
+ordinal_regression_model_mixed_no_interaction <- clmm(slider_confidence.response ~ correlation + interaction + (1 | participant), data = regression_input)
+
+# Fit a cumulative link model (CLM) for ordinal responses with interaction terms
+ordinal_regression_model_mixed <- clmm(slider_confidence.response ~ correlation * interaction + (1 | participant), data = regression_input)
+
+# Fit a logistic regression model with interaction terms (without mixed-effects)
+ordinal_regression_model_standard <- clm(slider_confidence.response ~ correlation * interaction, data = regression_input)
+
+# Summarize the model results
+summary(ordinal_regression_model_mixed)
+summary(ordinal_regression_model_mixed_no_interaction)
+summary(ordinal_regression_model_standard)
+
+# Perform post-hoc comparisons using the emmeans package
+emm <- emmeans(ordinal_regression_model_mixed, ~ correlation * interaction)
+comparisons_ordinal_mixed <- emm %>% pairs(adjust = "tukey")
+
+emm <- emmeans(ordinal_regression_model_standard, ~ correlation * interaction)
+comparisons_ordinal_standard <- emm %>% pairs(adjust = "tukey")
+
+# Print the pairwise comparisons
+summary(comparisons_ordinal_mixed)
+summary(comparisons_ordinal_standard)
+
