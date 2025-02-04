@@ -235,6 +235,28 @@ for tr in range(len(trialorder)):
     # Append the sample data to the `stims` list
     stims.append(sample)
 
+    # -----------------------------------------------------------------------------------
+    # Save coordinates in CSV file to be used in script that calculates speed scaling factors
+    # -----------------------------------------------------------------------------------
+
+    # Define filename for saving transformed and downsampled (but unscaled) trajectories
+    unscaled_csv_filename = os.path.join("output", f"dots_{tr:02d}_type{trialorder[tr]}.0_seed{SEED}.csv")
+    os.makedirs("output", exist_ok=True)  # Ensure the output folder exists
+
+    # Save unscaled X and Y coordinates for both discs
+    with open(unscaled_csv_filename, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['X1', 'Y1', 'X2', 'Y2'])  # Write header row
+        for j in range(len(M)):  # Loop through all time steps
+            writer.writerow([M[j, 0], M[j, 1], M[j, 2], M[j, 3]])
+
+    # Print confirmation if silent mode is disabled
+    if not silent:
+        print(f"Saved transformed and downsampled (but unscaled) positions to {unscaled_csv_filename}")
+
+    # IMPORTANT: This output is used in script "Animations_speed_scaling_factors"
+    # The speed scaling factors calculated in this script are then input below. 
+
 # Print confirmation message if `silent` mode is disabled
 if not silent:
     print(f"We calculated {len(stims)} trajectories!")
@@ -276,28 +298,6 @@ def drawdots(x1, y1, x2, y2, objSize=objSize, ballcolor=ballcolor):
     )
 
     return img
-
-# -----------------------------------------------------------------------------------
-Save coordinates in CSV file to be used in script that calculates speed scaling factors
-# -----------------------------------------------------------------------------------
-
-# Define filename for saving transformed and downsampled (but unscaled) trajectories
-unscaled_csv_filename = os.path.join("output", f"dots_{tr:02d}_type{trialorder[tr]}.0_seed{SEED}.csv")
-os.makedirs("output", exist_ok=True)  # Ensure the output folder exists
-
-# Save downsampled but unscaled X and Y coordinates for both discs
-with open(unscaled_csv_filename, 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(['X1', 'Y1', 'X2', 'Y2'])  # Write header row
-    for j in range(len(M)):  # Write each time step
-        writer.writerow([M[j, 0], M[j, 1], M[j, 2], M[j, 3]])
-
-# Print confirmation if silent mode is disabled
-if not silent:
-    print(f"Saved transformed and downsampled (but unscaled) positions to {unscaled_csv_filename}")
-
-# IMPORTANT: This output is used in script "Animations_speed_scaling_factors"
-# The speed scaling factors calculated in this script are then input below. 
 
 # -----------------------------------------------------------------------------------
 # Speed Scaling and Output Generation
