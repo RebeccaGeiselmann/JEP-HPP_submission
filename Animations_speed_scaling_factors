@@ -22,7 +22,7 @@ SCRIPT TO SCALE SPEED DIFFERENCES BETWEEN ANIMATIONS
 # Type 8: High synchrony - directed motion absent
 
 # -----------------------------------------------------------------------------------
-Load required packages
+Load Required Packages
 # -----------------------------------------------------------------------------------
 
 import os
