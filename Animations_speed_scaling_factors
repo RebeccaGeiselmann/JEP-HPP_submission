@@ -33,6 +33,9 @@ import numpy as np
 Main script
 # -----------------------------------------------------------------------------------
 
+# Set the working directory to a specific path
+os.chdir("/path/to/your/directory")
+
 # List of input file paths containing trajectory data for different trial types
 # These files are generated in the script "Animations"
 file_paths = [
