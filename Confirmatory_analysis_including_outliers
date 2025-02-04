@@ -10,7 +10,7 @@ CONFIRMATORY ANALYSIS WITH OUTLIERS INCLUDED
 # - Responses whose response times for both purpose response and confidence ratings fall outside of the whiskers of a boxplot
 
 # -----------------------------------------------------------------------------------
-Install and load required packages for data processing, visualization, and statistical analysis
+Install and Load Required Packages for Data Processing, Visualization, and Statistical Analysis
 # -----------------------------------------------------------------------------------
 
 install.packages("readr") # For reading CSV files
@@ -33,7 +33,7 @@ install.packages("gridExtra") # For arranging multiple plots in a grid
 library(gridExtra)
 
 # -----------------------------------------------------------------------------------
-# Data-wrangling original data 
+# Data-Wrangling Original Data 
 # -----------------------------------------------------------------------------------
 
 # Clear the workspace to remove any existing variables
@@ -96,7 +96,7 @@ for (i in 1:length(original_data)) {
 write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
 
 # -----------------------------------------------------------------------------------
-# Regression Data-wrangling 
+# Regression Data-Wrangling 
 # -----------------------------------------------------------------------------------
 
 # Read in the combined dataset
@@ -136,7 +136,7 @@ print(regression_input)
 write.csv(regression_input, "regression_input.csv", row.names = FALSE)
 
 # -----------------------------------------------------------------------------------
-# Mixed effects regression binary response  
+# Mixed Effects Regression Binary Response  
 # -----------------------------------------------------------------------------------
 
 # Read your original dataset
@@ -213,7 +213,7 @@ summary(comparisons_binary_mixed)
 summary(comparisons_binary_standard)
 
 # -----------------------------------------------------------------------------------
-# Mixed effects regression response times 
+# Mixed Effects Regression Response Times 
 # -----------------------------------------------------------------------------------
 
 # Read the dataset
@@ -257,7 +257,7 @@ summary(comparisons_gamma_mixed)
 summary(comparisons_gamma_standard)
 
 # -----------------------------------------------------------------------------------
-# Mixed effects regression confidence 
+# Mixed effects Regression Confidence 
 # -----------------------------------------------------------------------------------
 
 # Read the updated dataset
