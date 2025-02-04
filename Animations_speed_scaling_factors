@@ -30,7 +30,7 @@ import pandas as pd
 import numpy as np
 
 # -----------------------------------------------------------------------------------
-Main script
+# Set Working Directory and Define File Paths
 # -----------------------------------------------------------------------------------
 
 # Set the working directory to a specific path
@@ -63,7 +63,10 @@ summary_output_paths = [
 # Time step used in trajectory calculations
 dt = 0.025  # Time interval between frames
 
-# Function to process a batch of files, calculate speeds, and save summary
+# -----------------------------------------------------------------------------------
+# Function to Process a Batch of Files, Calculate Speeds, and Save Summary
+# -----------------------------------------------------------------------------------
+
 def process_files(group_files, group_outputs, summary_output):
     """
     Processes a group of trajectory files, calculates speed, and generates summary statistics.
@@ -106,7 +109,10 @@ def process_files(group_files, group_outputs, summary_output):
     summary_df.to_csv(summary_output, index=False)
     print(f"Saved summary data to {summary_output}")
 
-# Process each group of 10 files (corresponding to each trial type)
+# -----------------------------------------------------------------------------------
+# Process Each Group of 10 Files (Corresponding to Each Trial Type)
+# -----------------------------------------------------------------------------------
+
 for i in range(0, len(file_paths), 10):
     group_files = file_paths[i:i+10]  # Select the current group of files
     group_outputs = output_paths[i:i+10]  # Select corresponding output files
@@ -115,6 +121,10 @@ for i in range(0, len(file_paths), 10):
 
 # List to hold the overall mean speeds across all groups
 overall_means = []
+
+# -----------------------------------------------------------------------------------
+# Compute Overall Mean Speeds Across All Groups
+# -----------------------------------------------------------------------------------
 
 # Compute overall means for each group
 for summary_file in summary_output_paths:
@@ -126,6 +136,10 @@ for summary_file in summary_output_paths:
 # Convert to DataFrame and display results
 overall_mean_df = pd.DataFrame(overall_means)
 print(overall_mean_df)
+
+# -----------------------------------------------------------------------------------
+# Compute Speed Scaling Factors for Different Conditions
+# -----------------------------------------------------------------------------------
 
 # Combine groups for special analysis (Type 1 & 3, Type 2 & 4)
 # These groups are combined as they have the same cross-correlation factor (synchrony) and hence speed in the original animations.
@@ -153,6 +167,10 @@ print("Scaling factor for Disc 1 in Groups 1 and 3:", scaling_factor_disc1_13)
 print("Scaling factor for Disc 1 in Groups 2 and 4:", scaling_factor_disc1_24)
 print("Scaling factor for Disc 2 in Groups 1 and 3:", scaling_factor_disc2_13)
 print("Scaling factor for Disc 2 in Groups 2 and 4:", scaling_factor_disc2_24)
+
+# -----------------------------------------------------------------------------------
+# Save Scaling Factors to a CSV File
+# -----------------------------------------------------------------------------------
 
 # Save scaling factors to a CSV file
 df_scaling_factors = pd.DataFrame({
