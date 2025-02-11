@@ -11,8 +11,11 @@ library(lme4)       # Mixed-effects modeling
 library(ordinal)    # Ordinal regression models
 library(emmeans)    # Post-hoc comparisons
 
+# Clear the workspace
+rm(list = ls())
+
 # Set the working directory to the folder containing the participant files
-setwd("")
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
 
 # -----------------------------------------------------------------------------------
 # Data Wrangling for Confidence Ratings 
@@ -20,7 +23,7 @@ setwd("")
 
 # Read in the dataset containing all participants' responses (excluding outliers)
 # This script just runs the analysis on experiment 1 (chase)
-all_participants_excl_outliers <- read_csv("")
+all_participants_excl_outliers <- read_csv("all_participants_excl_outliers.csv")
 
 # Initialize an empty data frame for reshaped data
 regression_input <- data.frame()
@@ -146,6 +149,70 @@ print(overall_distribution)
 #  Visualization 
 # -----------------------------------------------------------------------------------
 
+# Load the dataset
+data <- read.csv("all_participants_excl_outliers.csv")
+
+# Initialize an empty data frame to store reshaped data
+reshaped_data <- data.frame()
+
+# Loop through each participant and reshape the data
+for (i in 1:78) {
+  # Dynamically create column names for the participant
+  condition_col <- paste0("condition_", i)
+  binary_resp_col <- paste0("binary_question_key_resp.keys_", i)
+  rt_col <- paste0("binary_question_key_resp.rt_", i)
+  confidence_col <- paste0("slider_confidence.response_", i)
+  
+  # Check if the columns exist in the dataset
+  if (all(c(condition_col, binary_resp_col, rt_col, confidence_col) %in% colnames(data))) {
+    # Extract participant-specific columns using dplyr::select and slice rows 9 to 48
+    participant_data <- data %>%
+      dplyr::select(
+        condition = !!sym(condition_col), 
+        binary_response = !!sym(binary_resp_col), 
+        response_time = !!sym(rt_col), 
+        confidence = !!sym(confidence_col)
+      ) %>%
+      dplyr::slice(9:48)  # Include only rows 9 to 48
+    
+    # Add participant ID
+    participant_data$participant <- i
+    
+    # Combine into reshaped data frame
+    reshaped_data <- bind_rows(reshaped_data, participant_data)
+  } else {
+    message("One or more columns are missing for participant ", i)
+  }
+}
+
+# Recode binary responses: "left" = Yes (1), "right" = No (0)
+reshaped_data$binary_response <- ifelse(reshaped_data$binary_response == "left", 1, 
+                                        ifelse(reshaped_data$binary_response == "right", 0, NA))
+
+# Convert binary response to factor with levels ordered as "Yes" first and "No" second
+reshaped_data$binary_response <- factor(reshaped_data$binary_response, levels = c(1, 0), labels = c("Yes", "No"))
+
+# Exclude rows with NA values
+reshaped_data <- na.omit(reshaped_data)
+
+# Ensure the conditions are ordered correctly: HSDP, LSDP, HSDA, LSDA
+reshaped_data$condition <- factor(reshaped_data$condition, levels = c("HSDP", "LSDP", "HSDA", "LSDA"))
+
+# Calculate mean confidence ratings and confidence intervals by condition and binary response
+mean_confidence_by_condition <- reshaped_data %>%
+  group_by(condition, binary_response) %>%
+  summarise(mean_confidence = mean(confidence, na.rm = TRUE),
+            se_confidence = sd(confidence, na.rm = TRUE) / sqrt(n()),
+            lower_ci = mean_confidence - qt(0.975, df=n()-1) * se_confidence,
+            upper_ci = mean_confidence + qt(0.975, df=n()-1) * se_confidence) %>%
+  ungroup()
+
+# Calculate individual participant means for each condition and response type
+individual_means <- reshaped_data %>%
+  group_by(condition, binary_response, participant) %>%
+  summarise(mean_confidence = mean(confidence, na.rm = TRUE)) %>%
+  ungroup()
+
 # Recode condition into synchrony and directed motion categories
 reshaped_data <- reshaped_data %>%
   mutate(
@@ -163,18 +230,56 @@ mean_confidence_by_factor <- reshaped_data %>%
     upper_ci = mean_confidence + qt(0.975, df = n() - 1) * se_confidence
   ) %>%
   ungroup()
-
 # Generate a point plot for confidence ratings with synchrony and directed motion
-p_confidence_points <- ggplot(mean_confidence_by_factor, aes(x = synchrony, y = mean_confidence, color = directed_motion, shape = binary_response)) +
-  geom_point(size = 3, position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.5)) +
+p_points_conf <- ggplot(mean_confidence_by_factor, aes(x = synchrony, y = mean_confidence, color = directed_motion, shape = binary_response)) +
+  # Add points for mean confidence with size adjusted to match the first plot
+  geom_point(size = 4, position = position_dodge(width = 0.75), stroke = 0.5) +  # Adjust size of points to match
+  
+  # Add error bars for confidence intervals with linewidth set to match the first plot
+  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0.2, position = position_dodge(width = 0.75), linewidth = 0.5) +  # Adjust error bar thickness
+  
+  # Set colors for Directed Motion (Present = Orange, Absent = Green)
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  # Color for Directed Motion
+  
+  # Set shapes for responses (Yes = filled circle, No = hollow triangle)
   scale_shape_manual(values = c("Yes" = 16, "No" = 17)) +  # Different shapes for responses
-  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  # Different colors for motion
-  labs(x = "Synchrony", y = "Mean Confidence", color = "Directed Motion", shape = "Response") +
-  theme_minimal()
-
-# Save the plot
-ggsave("mean_confidence_point_plot_with_synchrony_and_motion_and_responses.png", plot = p_confidence_points, width = 10, height = 6)
+  
+  # Add labels and customize the appearance of the plot
+  labs(
+    x = "Synchrony", 
+    y = "Mean Confidence", 
+    color = "Directed Motion", 
+    shape = "Response"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right", 
+    text = element_text(size = rel(2)), 
+    axis.title = element_text(size = rel(2)),
+    axis.text = element_text(size = rel(2)),
+    plot.title = element_text(size = rel(8)),
+    legend.title = element_text(size = rel(8)),
+    legend.text = element_text(size = rel(8))
+  )
 
 # Display the plot
-print(p_confidence_points)
+print(p_points_conf)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with the required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("confidence_point_plot_color_300DPI.png", 
+       plot = p_points_conf, 
+       dpi = 300, 
+       width = 7, height = 5, 
+       units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("confidence_point_plot_grayscale_600DPI.png", 
+       plot = p_points_conf + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, 
+       width = 7, height = 5, 
+       units = "in")
+
