@@ -1,0 +1,420 @@
+# -----------------------------------------------------------------------------------
+# Load necessary packages
+# -----------------------------------------------------------------------------------
+library(ggplot2)      # ggplot2 is used for creating the plots
+library(gridExtra)    # gridExtra allows for arranging multiple plots in a grid layout
+library(grid)         # grid is used for adding custom graphic objects (e.g., text) to the plots
+library(cowplot)      # cowplot is used for combining and aligning plots
+library(graphics)     # graphics is used for basic R graphics functionality (e.g., creating grobs)
+
+# -----------------------------------------------------------------------------------
+# Sensory Evidence of Chasing - Color Scale
+# -----------------------------------------------------------------------------------
+
+# Set the working directory to the folder containing the data for the "Evidence of Purpose" experiment
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+
+rm(list = ls())  # Clear workspace to start fresh
+
+# -----------------------------------------------------------------------------------
+# Generate data for the upper plot (Beta distributions for "Absent" and "Present")
+# -----------------------------------------------------------------------------------
+upper_plot1 <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  # Create Beta distribution for "Absent"
+         Present = dbeta(x, 6, 2)) %>%  # Create Beta distribution for "Present"
+  gather(movement, density, -x) %>%  # Reshape the data for plotting
+  ggplot(aes(x = x, y = density, color = factor(movement, levels = c("Absent", "Present")))) +  # Set factor levels
+  geom_line() +  # Add line for the distribution
+  theme_classic() +  # Use classic theme
+  labs(x = NULL, y = "High") +  # Label y-axis as "High", no x-axis label
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  # Set custom colors for conditions
+  theme(
+    axis.title.y = element_text(size = 12),  # Font size for y-axis title
+    axis.text = element_blank(),  # Remove axis text (both x and y axis numbers)
+    axis.ticks = element_blank(),  # Remove axis ticks
+    legend.position = "none"  # Hide legend
+  )  # Customize appearance
+
+# -----------------------------------------------------------------------------------
+# Generate data for the lower plot (Beta distributions for "Absent" and "Present")
+# -----------------------------------------------------------------------------------
+lower_plot1 <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  # Create Beta distribution for "Absent"
+         Present = dbeta(x, 7, 5)) %>%  # Create Beta distribution for "Present"
+  gather(movement, density, -x) %>%  # Reshape the data for plotting
+  ggplot(aes(x = x, y = density, color = factor(movement, levels = c("Absent", "Present")))) +  # Set factor levels
+  geom_line() +  # Add line for the distribution
+  theme_classic() +  # Use classic theme
+  labs(x = "Sensory Evidence of Chasing (Mean)", y = "Low") +  # Label x and y axes
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  # Set custom colors for conditions
+  theme(
+    axis.title.y = element_text(size = 12),  # Font size for y-axis title
+    axis.title.x = element_text(size = 14),  # Font size for x-axis title
+    axis.text.y = element_blank(),  # Remove y-axis numbers
+    axis.text.x = element_blank(),  # Remove x-axis numbers
+    axis.ticks = element_blank(),  # Remove axis ticks
+    legend.position = "none"  # Hide legend
+  )  # Customize appearance
+
+# -----------------------------------------------------------------------------------
+# Create a legend for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+legend_plot1 <- data.frame(x = c(0, 1), y = c(0, 1)) %>% 
+  ggplot(aes(x, y, color = factor(c("Present", "Absent")))) +
+  geom_line(aes(color = "Present")) +  # Line for "Present"
+  geom_line(aes(color = "Absent")) +  # Line for "Absent"
+  scale_color_manual(
+    name = "Directed Motion", 
+    values = c("Present" = "orange", "Absent" = "darkgreen"),
+    labels = c("Absent", "Present")
+  ) +  # Set legend labels to match plot order
+  theme_void() +  # Empty background
+  theme(
+    legend.position = "right",  # Place legend on the right
+    legend.title = element_text(size = 14),  # Font size for legend title (larger)
+    legend.text = element_text(size = 12)  # Font size for legend text (same size)
+  )  # Customize legend
+
+# Extract the legend for "Evidence of Chasing"
+legend1 <- get_legend(legend_plot1)
+
+# -----------------------------------------------------------------------------------
+# Combine the two plots for "Evidence of Chasing" with the legend
+# -----------------------------------------------------------------------------------
+combined_plot1 <- plot_grid(
+  plot_grid(upper_plot1, lower_plot1, nrow = 2, align = "v"),  # Stack the upper and lower plots vertically
+  legend1,  # Add the legend to the right
+  rel_widths = c(4, 1)  # Adjust relative widths of the plots and legend
+)
+
+# -----------------------------------------------------------------------------------
+# Add y-axis label for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+y_label <- textGrob("Synchrony", rot = 90, vjust = 1, gp = gpar(fontsize = 14))  # Create rotated label for the y-axis
+
+# -----------------------------------------------------------------------------------
+# Combine everything for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+final_plot1 <- grid.arrange(
+  arrangeGrob(combined_plot1, left = y_label)  # Combine plot with y-axis label
+)
+
+# -----------------------------------------------------------------------------------
+# Display the final combined plot for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+print(final_plot1)
+
+# -----------------------------------------------------------------------------------
+# Save the plot for "Evidence of Chasing" with the required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("hypothesis_chasing_plot_color_300DPI.png", plot = final_plot1, dpi = 300, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Sensory Evidence of Chasing - Grayscale Scale
+# -----------------------------------------------------------------------------------
+
+# Set the working directory to the folder containing the data
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+
+rm(list = ls())  # Clear workspace to start fresh
+
+# -----------------------------------------------------------------------------------
+# Generate data for the upper plot (Beta distributions for "Absent" and "Present") - Grayscale
+# -----------------------------------------------------------------------------------
+upper_plot1 <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  
+         Present = dbeta(x, 6, 2)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = factor(movement, levels = c("Absent", "Present")))) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = NULL, y = "High") +  
+  scale_color_grey(start = 0.3, end = 0.7) +  # Grayscale
+  scale_fill_grey(start = 0.3, end = 0.7) +  # Grayscale
+  theme(
+    axis.title.y = element_text(size = 12),  
+    axis.text = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Generate data for the lower plot (Beta distributions for "Absent" and "Present") - Grayscale
+# -----------------------------------------------------------------------------------
+lower_plot1 <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  
+         Present = dbeta(x, 7, 5)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = factor(movement, levels = c("Absent", "Present")))) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = "Sensory Evidence of Chasing (Mean)", y = "Low") +  
+  scale_color_grey(start = 0.3, end = 0.7) +  # Grayscale
+  scale_fill_grey(start = 0.3, end = 0.7) +  # Grayscale
+  theme(
+    axis.title.y = element_text(size = 12),  
+    axis.title.x = element_text(size = 14),  
+    axis.text.y = element_blank(),  
+    axis.text.x = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Create a legend for "Evidence of Chasing" - Grayscale
+# -----------------------------------------------------------------------------------
+legend_plot1 <- data.frame(x = c(0, 1), y = c(0, 1)) %>% 
+  ggplot(aes(x, y, color = factor(c("Present", "Absent")))) +
+  geom_line(aes(color = "Present")) +  
+  geom_line(aes(color = "Absent")) +  
+  scale_color_grey(
+    start = 0.3, end = 0.7,  
+    name = "Directed Motion",
+    labels = c("Absent", "Present")
+  ) +  # Set legend labels for grayscale
+  theme_void() +  
+  theme(
+    legend.position = "right",  
+    legend.title = element_text(size = 14),  
+    legend.text = element_text(size = 12)  
+  )  
+
+# Extract the legend for "Evidence of Chasing"
+legend1 <- get_legend(legend_plot1)
+
+# -----------------------------------------------------------------------------------
+# Combine the two plots for "Evidence of Chasing" with the legend
+# -----------------------------------------------------------------------------------
+combined_plot1 <- plot_grid(
+  plot_grid(upper_plot1, lower_plot1, nrow = 2, align = "v"),  
+  legend1,  
+  rel_widths = c(4, 1)  
+)
+
+# -----------------------------------------------------------------------------------
+# Add y-axis label for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+y_label <- textGrob("Synchrony", rot = 90, vjust = 1, gp = gpar(fontsize = 14))  
+
+# -----------------------------------------------------------------------------------
+# Combine everything for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+final_plot1 <- grid.arrange(
+  arrangeGrob(combined_plot1, left = y_label)  
+)
+
+# -----------------------------------------------------------------------------------
+# Display the final combined plot for "Evidence of Chasing"
+# -----------------------------------------------------------------------------------
+print(final_plot1)
+
+# -----------------------------------------------------------------------------------
+# Save the plot for "Evidence of Chasing" with the required resolution (DPI) - Grayscale
+# -----------------------------------------------------------------------------------
+ggsave("hypothesis_chasing_plot_grayscale_600DPI.png", plot = final_plot1, dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Sensory Evidence of Purpose - Color-Scale (With Matched Font Sizes)
+# -----------------------------------------------------------------------------------
+
+# Set the working directory to the folder containing the data
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+
+# Clear all objects in the workspace to avoid conflicts and start fresh
+rm(list = ls())
+
+# -----------------------------------------------------------------------------------
+# Generate the data for the upper plot (Beta distributions for "Absent" and "Present")
+# -----------------------------------------------------------------------------------
+upper_plot <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 5, 7),  
+         Present = dbeta(x, 6, 2)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = movement)) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = NULL, y = "High") +  
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  
+  theme(
+    axis.title.y = element_text(size = 12),  # Matched font size
+    axis.text = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Generate the data for the lower plot (Beta distributions for "Absent" and "Present")
+# -----------------------------------------------------------------------------------
+lower_plot <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  
+         Present = dbeta(x, 7, 5)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = movement)) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = "Sensory Evidence of Purpose (Mean)", y = "Low") +  
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +  
+  theme(
+    axis.title.y = element_text(size = 12),  
+    axis.title.x = element_text(size = 14),  
+    axis.text = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Create a legend for "Evidence of Purpose"
+# -----------------------------------------------------------------------------------
+legend_plot <- data.frame(x = c(0, 1), y = c(0, 1)) %>%  
+  ggplot(aes(x, y, color = factor(c("Absent", "Present")))) +  
+  geom_line(aes(color = "Absent")) +  
+  geom_line(aes(color = "Present")) +  
+  scale_color_manual(
+    name = "Directed Motion",
+    values = c("Present" = "orange", "Absent" = "darkgreen"),
+    labels = c("Absent", "Present")
+  ) +  
+  theme_void() +  
+  theme(
+    legend.position = "right",  
+    legend.title = element_text(size = 14),  # Matched font size
+    legend.text = element_text(size = 12)  # Matched font size
+  )  
+
+# Extract the legend for "Evidence of Purpose"
+legend <- get_legend(legend_plot)
+
+# -----------------------------------------------------------------------------------
+# Combine the upper and lower plots vertically with the legend on the right
+# -----------------------------------------------------------------------------------
+combined_plot <- plot_grid(
+  plot_grid(upper_plot, lower_plot, nrow = 2, align = "v"),  
+  legend,  
+  rel_widths = c(4, 1)  
+)
+
+# -----------------------------------------------------------------------------------
+# Add a y-axis label for the combined plot (with rotation)
+# -----------------------------------------------------------------------------------
+y_label <- textGrob("Synchrony", rot = 90, vjust = 1, gp = gpar(fontsize = 14))  
+
+# -----------------------------------------------------------------------------------
+# Combine everything into the final plot
+# -----------------------------------------------------------------------------------
+final_plot2 <- grid.arrange(
+  arrangeGrob(combined_plot, left = y_label)  
+)
+
+# -----------------------------------------------------------------------------------
+# Display the final combined plot
+# -----------------------------------------------------------------------------------
+print(final_plot2)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with the required resolution (DPI)
+# -----------------------------------------------------------------------------------
+ggsave("hypothesis_purpose_plot_color_300DPI.png", plot = final_plot2, dpi = 300, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Sensory Evidence of Purpose - Grayscale Scale
+# -----------------------------------------------------------------------------------
+
+# Set the working directory to the folder containing the data
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+
+# Clear all objects in the workspace to avoid conflicts and start fresh
+rm(list = ls())
+
+# -----------------------------------------------------------------------------------
+# Generate the data for the upper plot (Beta distributions for "Absent" and "Present") - Grayscale
+# -----------------------------------------------------------------------------------
+upper_plot <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 5, 7),  
+         Present = dbeta(x, 6, 2)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = movement)) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = NULL, y = "High") +  
+  scale_color_grey(start = 0.3, end = 0.7) +  # Grayscale conversion
+  theme(
+    axis.title.y = element_text(size = 12),  # Matched font size
+    axis.text = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Generate the data for the lower plot (Beta distributions for "Absent" and "Present") - Grayscale
+# -----------------------------------------------------------------------------------
+lower_plot <- data.frame(x = seq(0, 1, by=.01)) %>% 
+  mutate(Absent = dbeta(x, 2, 6),  
+         Present = dbeta(x, 7, 5)) %>%  
+  gather(movement, density, -x) %>%  
+  ggplot(aes(x = x, y = density, color = movement)) +  
+  geom_line() +  
+  theme_classic() +  
+  labs(x = "Sensory Evidence of Purpose (Mean)", y = "Low") +  
+  scale_color_grey(start = 0.3, end = 0.7) +  # Grayscale conversion
+  theme(
+    axis.title.y = element_text(size = 12),  
+    axis.title.x = element_text(size = 14),  
+    axis.text = element_blank(),  
+    axis.ticks = element_blank(),  
+    legend.position = "none"  
+  )  
+
+# -----------------------------------------------------------------------------------
+# Create a legend for "Evidence of Purpose" - Grayscale
+# -----------------------------------------------------------------------------------
+legend_plot <- data.frame(x = c(0, 1), y = c(0, 1)) %>%  
+  ggplot(aes(x, y, color = factor(c("Absent", "Present")))) +  
+  geom_line(aes(color = "Absent")) +  
+  geom_line(aes(color = "Present")) +  
+  scale_color_grey(
+    start = 0.3, end = 0.7,  
+    name = "Directed Motion",
+    labels = c("Absent", "Present")
+  ) +  
+  theme_void() +  
+  theme(
+    legend.position = "right",  
+    legend.title = element_text(size = 14),  # Matched font size
+    legend.text = element_text(size = 12)  # Matched font size
+  )  
+
+# Extract the legend for "Evidence of Purpose"
+legend <- get_legend(legend_plot)
+
+# -----------------------------------------------------------------------------------
+# Combine the upper and lower plots vertically with the legend on the right
+# -----------------------------------------------------------------------------------
+combined_plot <- plot_grid(
+  plot_grid(upper_plot, lower_plot, nrow = 2, align = "v"),  
+  legend,  
+  rel_widths = c(4, 1)  
+)
+
+# -----------------------------------------------------------------------------------
+# Add a y-axis label for the combined plot (with rotation)
+# -----------------------------------------------------------------------------------
+y_label <- textGrob("Synchrony", rot = 90, vjust = 1, gp = gpar(fontsize = 14))  
+
+# -----------------------------------------------------------------------------------
+# Combine everything into the final plot
+# -----------------------------------------------------------------------------------
+final_plot2 <- grid.arrange(
+  arrangeGrob(combined_plot, left = y_label)  
+)
+
+# -----------------------------------------------------------------------------------
+# Display the final combined plot
+# -----------------------------------------------------------------------------------
+print(final_plot2)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with the required resolution (DPI) - Grayscale
+# -----------------------------------------------------------------------------------
+ggsave("hypothesis_purpose_plot_grayscale_600DPI.png", plot = final_plot2, dpi = 600, width = 7, height = 5, units = "in")
