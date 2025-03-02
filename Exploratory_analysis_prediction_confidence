@@ -22,7 +22,7 @@ setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysi
 # -----------------------------------------------------------------------------------
 
 # Read in the dataset containing all participants' responses (excluding outliers)
-# This script just runs the analysis on experiment 1 (chase)
+# The same script was used for experiment 1 and 2
 all_participants_excl_outliers <- read_csv("all_participants_excl_outliers.csv")
 
 # Initialize an empty data frame for reshaped data
@@ -282,4 +282,5 @@ ggsave("confidence_point_plot_grayscale_600DPI.png",
        dpi = 600, 
        width = 7, height = 5, 
        units = "in")
+
 
