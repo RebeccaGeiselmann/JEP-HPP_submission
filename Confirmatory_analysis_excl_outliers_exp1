@@ -33,8 +33,8 @@ library(gridExtra)
 # Clear the workspace
 rm(list = ls())
 
-# Set the working directory to the folder containing the participant files
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 # -----------------------------------------------------------------------------------
 # Define Participant Files 
