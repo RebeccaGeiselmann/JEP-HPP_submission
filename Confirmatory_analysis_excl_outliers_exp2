@@ -1645,15 +1645,49 @@ binary_model_standard <- glm(binary_question_key_resp.keys ~ correlation * inter
 binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.keys ~ correlation + interaction + (1 | participant),
                                            family = binomial, data = regression_input)
 
+# Fit a mixed-effects logistic regression model only one predictor
+binary_model_mixed_only_interaction <- glmer(binary_question_key_resp.keys ~  interaction + (1 | participant),
+                                           family = binomial, data = regression_input)
+
+# Fit a mixed-effects logistic regression model only one predictor
+binary_model_mixed_only_correlation <- glmer(binary_question_key_resp.keys ~ correlation  + (1 | participant),
+                                           family = binomial, data = regression_input)
+
 # Fit a mixed-effects logistic regression model with interaction terms
 # Specify control settings if you're having convergence issues, otherwise, this might be optional
 # control <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1000))
 # control <- glmerControl(optimizer = "nloptwrap")
 
 # Summarize the model results
-summary(binary_model_mixed) # results show lower AIC
+summary(binary_model_mixed) 
 summary(binary_model_standard) 
 summary (binary_model_mixed_no_interaction)
+summary (binary_model_mixed_only_interaction)
+summary (binary_model_mixed_only_correlation )
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Binary Response
+# -----------------------------------------------------------------------------------
+
+# Get estimated marginal means
+emm <- emmeans(binary_model_mixed, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
+# Get estimated marginal means
+emm <- emmeans(binary_model_standard, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_standard, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
 
 # -----------------------------------------------------------------------------------
 # Post-Hoc Comparisons for Binary Response
@@ -1714,6 +1748,26 @@ summary(gamma_regression_model_standard)
 summary(binary_model_mixed_no_interaction)
 
 # -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Response Times
+# -----------------------------------------------------------------------------------
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# -----------------------------------------------------------------------------------
 # Post-Hoc Comparisons for Response Times
 # -----------------------------------------------------------------------------------
 
@@ -1758,6 +1812,26 @@ binary_model_mixed_no_interaction <- clmm(slider_confidence.response ~ correlati
 summary(ordinal_regression_model_mixed)
 summary(ordinal_regression_model_standard)
 summary(binary_model_mixed_no_interaction)
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
 # -----------------------------------------------------------------------------------
 # Post-Hoc Comparisons for Confidence Ratings
