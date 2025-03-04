@@ -26,6 +26,9 @@ library(ggplot2)
 # Power Analysis for Binary Response (Yes/No)
 # -----------------------------------------------------------------------------------
 
+# Set the working directory 
+setwd("")
+
 # Load dataset containing responses from the pilot experiment
 regression_input <- read_csv("")
 
