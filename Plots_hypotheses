@@ -13,8 +13,8 @@ library(graphics)     # graphics is used for basic R graphics functionality (e.g
 # Sensory Evidence of Chasing - Color Scale
 # -----------------------------------------------------------------------------------
 
-# Set the working directory to the folder containing the data for the "Evidence of Purpose" experiment
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 rm(list = ls())  # Clear workspace to start fresh
 
@@ -121,8 +121,8 @@ ggsave("hypothesis_chasing_plot_color_300DPI.png", plot = final_plot1, dpi = 300
 # Sensory Evidence of Chasing - Grayscale
 # -----------------------------------------------------------------------------------
 
-# Set the working directory to the folder containing the data for the "Evidence of Purpose" experiment
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 rm(list = ls())  # Clear workspace to start fresh
 
@@ -229,8 +229,8 @@ ggsave("hypothesis_chasing_plot_grayscale_600DPI.png", plot = final_plot1, dpi =
 # Sensory Evidence of Purpose - Color-Scale 
 # -----------------------------------------------------------------------------------
 
-# Set the working directory to the folder containing the data
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 # Clear all objects in the workspace to avoid conflicts and start fresh
 rm(list = ls())
@@ -336,8 +336,8 @@ ggsave("hypothesis_purpose_plot_color_300DPI.png", plot = final_plot2, dpi = 300
 # Sensory Evidence of Purpose - Grayscale
 # -----------------------------------------------------------------------------------
 
-# Set the working directory to the folder containing the data
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 # Clear all objects in the workspace to avoid conflicts and start fresh
 rm(list = ls())
