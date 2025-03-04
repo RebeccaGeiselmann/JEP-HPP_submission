@@ -201,6 +201,26 @@ summary(binary_model_mixed)
 summary(binary_model_mixed_no_interaction)
 summary(binary_model_standard) 
 
+# Get estimated marginal means
+emm <- emmeans(binary_model_mixed, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
+# Get estimated marginal means
+emm <- emmeans(binary_model_standard, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_standard, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
 # Perform post-hoc comparisons using the emmeans package
 emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
 comparisons_binary_mixed<- pairs(emm)
@@ -245,6 +265,22 @@ summary(gamma_regression_model_mixed)
 summary(gamma_regression_model_mixed_no_interaction)
 summary(gamma_regression_model_standard)
 
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
 # Perform post-hoc comparisons using the emmeans package
 emm <- emmeans(gamma_regression_model_mixed, ~ correlation * interaction)
 comparisons_gamma_mixed <- pairs(emm, adjust = "tukey")
@@ -283,6 +319,22 @@ ordinal_regression_model_standard <- clm(slider_confidence.response ~ correlatio
 summary(ordinal_regression_model_mixed)
 summary(ordinal_regression_model_mixed_no_interaction)
 summary(ordinal_regression_model_standard)
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
 # Perform post-hoc comparisons using the emmeans package
 emm <- emmeans(ordinal_regression_model_mixed, ~ correlation * interaction)
