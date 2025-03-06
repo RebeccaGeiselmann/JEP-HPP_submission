@@ -1,0 +1,1870 @@
+# -----------------------------------------------------------------------------------
+# SCRIPT FOR ANALYZING THE 2ND EXPERIMENT OF THE MOVING DISCS STUDY
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Load Required Libraries
+# -----------------------------------------------------------------------------------
+
+# Install and load packages
+install.packages("readr") # for reading csv files
+library(readr)
+install.packages("dplyr") # for data manipulation
+library(dplyr)
+install.packages("tidyr") # for tidying data
+library(tidyr)
+install.packages("ggplot2") # for data visualisation
+library(ggplot2)
+install.packages("stringr") # for string manipulation
+library(stringr)
+install.packages("lme4") # for linear regression models
+library(lme4)
+install.packages("emmeans") # for post-hoc comparisons
+library(emmeans) 
+install.packages("ordinal") # for ordinal regression models
+library(ordinal)  
+install.packages("gridExtra")
+library(gridExtra)
+
+# -----------------------------------------------------------------------------------
+# Set Working Directory and Clear Workspace
+# -----------------------------------------------------------------------------------
+
+# Clear the workspace
+rm(list = ls())
+
+# Set the working directory to the folder containing the participant files
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+
+# -----------------------------------------------------------------------------------
+# Define Participant Files 
+# -----------------------------------------------------------------------------------
+
+# List of file names for each participant's data
+participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7.csv",
+                       "P8.csv","P9.csv","P10.csv","P11.csv","P12.csv","P13.csv","P14.csv",
+                       "P15.csv","P16.csv","P17.csv","P18.csv","P19.csv","P20.csv","P21.csv", 
+                       "P22.csv","P23.csv","P24.csv","P25.csv","P26.csv","P27.csv","P28.csv", 
+                       "P29.csv","P30.csv","P31.csv","P32.csv","P33.csv","P34.csv","P35.csv",
+                       "P36.csv","P37.csv","P38.csv","P39.csv","P40.csv","P41.csv","P42.csv",
+                       "P43.csv","P44.csv","P45.csv","P46.csv","P47.csv","P48.csv","P49.csv",
+                       "P50.csv","P51.csv","P52.csv","P53.csv","P54.csv","P55.csv","P56.csv",
+                       "P57.csv","P58.csv","P59.csv","P60.csv","P61.csv","P62.csv","P63.csv",
+                       "P64.csv","P65.csv","P66.csv","P67.csv","P68.csv","P69.csv","P70.csv",
+                       "P71.csv","P72.csv","P73.csv","P74.csv","P75.csv","P76.csv", "P77.csv", 
+                       "P78.csv", "P79.csv", "P80.csv", "P81.csv")
+
+# -----------------------------------------------------------------------------------
+# Data Preparation: Exclusion Criteria
+# -----------------------------------------------------------------------------------
+
+# Participants with a total of 25% responses < 800ms (rounded to 844ms) 
+# were excluded manually before running this script.
+
+# -----------------------------------------------------------------------------------
+# Load and Process Individual Participant Files
+# -----------------------------------------------------------------------------------
+
+# Initialize an empty list to store data frames for each participant
+original_data <- list()
+
+# Initialize a variable to track the maximum number of rows across all data frames
+max_rows <- 0
+
+# Loop through each file, read the data, and update max_rows
+for (file in participant_files) {
+  data <- read_csv(file)
+  print(paste("Reading file:", file))
+  max_rows <- max(max_rows, nrow(data))
+  original_data[[length(original_data) + 1]] <- data
+}
+
+# -----------------------------------------------------------------------------------
+# Combine Data Across Participants
+# -----------------------------------------------------------------------------------
+
+# Initialize an empty data frame to store combined data for all participants, including outliers
+all_participants_incl_outliers <- data.frame()
+
+# Loop through each participant's data frame
+for (i in 1:length(original_data)) {
+  data <- original_data[[i]]
+  
+  # Ensure the data has max_rows rows, filling with NAs if not
+  if (nrow(data) < max_rows) {
+    needed <- max_rows - nrow(data)
+    na_data <- as.data.frame(matrix(NA, ncol = ncol(data), nrow = needed))
+    colnames(na_data) <- colnames(data)
+    data <- rbind(data, na_data)
+  }
+  
+  # Select the columns of interest
+  selected_data <- data[c('ParticipantID', 'workerId', 'binary_question_key_resp.keys', 'binary_question_key_resp.rt', 'slider_confidence.response', 'slider_confidence.rt', 'condition', 'movie1')]
+  
+  # Rename columns to avoid name clashes
+  colnames(selected_data) <- paste0(colnames(selected_data), "_", i)
+  
+  # Append the data to the final data frame
+  if(ncol(all_participants_incl_outliers) == 0) {
+    all_participants_incl_outliers <- selected_data
+  } else {
+    all_participants_incl_outliers <- cbind(all_participants_incl_outliers, selected_data)
+  }
+}
+
+# Save the final data frame (named all_participants_incl_outliers) to a CSV file
+write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Calculating Longstring Index
+# -----------------------------------------------------------------------------------
+
+# Load the data
+data <- read.csv("all_participants_incl_outliers.csv")
+
+# Initialize a list to store the longstring index for each participant
+longstring_indices <- numeric(81)
+
+# Function to calculate the longstring index for a participant
+calculate_longstring <- function(column_data) {
+  # Filter only "left" and "right" responses
+  column_data <- na.omit(column_data) # Remove missing values
+  column_data <- column_data[column_data %in% c("left", "right")]
+  
+  max_sequence <- 0
+  current_sequence <- 1
+  
+  if (length(column_data) == 0) return(0) # Return 0 if no valid data
+  
+  for (i in 2:length(column_data)) {
+    if (column_data[i] == column_data[i - 1]) {
+      current_sequence <- current_sequence + 1
+    } else {
+      if (current_sequence > max_sequence) {
+        max_sequence <- current_sequence
+      }
+      current_sequence <- 1
+    }
+  }
+  
+  return(max(max_sequence, current_sequence))
+}
+
+# -----------------------------------------------------------------------------------
+# Compute Longstring Index for Each Participant
+# -----------------------------------------------------------------------------------
+
+# Loop through each participant's response column
+for (i in 1:81) {
+  column_name <- paste("binary_question_key_resp.keys_", i, sep = "")
+  participant_data <- data[[column_name]]
+  
+  # Calculate the longstring index for this participant
+  longstring_index <- calculate_longstring(participant_data)
+  
+  # Store the longstring index
+  longstring_indices[i] <- longstring_index
+}
+
+# -----------------------------------------------------------------------------------
+# Identify Outliers Based on Longstring Index
+# -----------------------------------------------------------------------------------
+
+# Calculate the threshold: mean + 2 * standard deviation
+mean_longstring <- mean(longstring_indices)
+sd_longstring <- sd(longstring_indices)
+threshold <- mean_longstring + 2 * sd_longstring
+
+# Find participants whose longstring index is above the threshold
+outliers <- which(longstring_indices > threshold)
+
+# Print the results
+cat("Threshold for longstring index:", threshold, "\n")
+cat("Participants with longstring index above the threshold:\n")
+cat(outliers, sep = ", ")
+
+# IMPORTANT: Participants with longstring index above the threshold (16.65) were: number 38, 80, 81.
+# These were excluded from the following analysis:
+
+# -----------------------------------------------------------------------------------
+# Load Data Files After Longstring Index Exclusion 
+# -----------------------------------------------------------------------------------
+
+# List of new file names for each participant's data
+participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7.csv",
+                       "P8.csv","P9.csv","P10.csv","P11.csv","P12.csv","P13.csv","P14.csv",
+                       "P15.csv","P16.csv","P17.csv","P18.csv","P19.csv","P20.csv","P21.csv", 
+                       "P22.csv","P23.csv","P24.csv","P25.csv","P26.csv","P27.csv","P28.csv", 
+                       "P29.csv","P30.csv","P31.csv","P32.csv","P33.csv","P34.csv","P35.csv",
+                       "P36.csv","P37.csv","P39.csv","P40.csv","P41.csv","P42.csv",
+                       "P43.csv","P44.csv","P45.csv","P46.csv","P47.csv","P48.csv","P49.csv",
+                       "P50.csv","P51.csv","P52.csv","P53.csv","P54.csv","P55.csv","P56.csv",
+                       "P57.csv","P58.csv","P59.csv","P60.csv","P61.csv","P62.csv","P63.csv",
+                       "P64.csv","P65.csv","P66.csv","P67.csv","P68.csv","P69.csv","P70.csv",
+                       "P71.csv","P72.csv","P73.csv","P74.csv","P75.csv","P76.csv", "P77.csv", 
+                       "P78.csv", "P79.csv")
+
+# -----------------------------------------------------------------------------------
+# Read and Combine Participant Data After Longstring Index Exclusion 
+# -----------------------------------------------------------------------------------
+
+# Initialize an empty list to store data frames for each participant
+original_data <- list()
+
+# Initialize a variable to track the maximum number of rows across all data frames
+max_rows <- 0
+
+# Loop through each file, read the data, and update max_rows
+for (file in participant_files) {
+  data <- read_csv(file)
+  print(paste("Reading file:", file))
+  max_rows <- max(max_rows, nrow(data))
+  original_data[[length(original_data) + 1]] <- data
+}
+
+# -----------------------------------------------------------------------------------
+# Merge All Participants' Data into a Single Data Frame After Longstring Index Exclusion
+# -----------------------------------------------------------------------------------
+
+# Initialize an empty data frame to store combined data for all participants, including outliers
+all_participants_incl_outliers <- data.frame()
+
+# Loop through each participant's data frame
+for (i in 1:length(original_data)) {
+  data <- original_data[[i]]
+  
+  # Ensure the data has max_rows rows, filling with NAs if not
+  if (nrow(data) < max_rows) {
+    needed <- max_rows - nrow(data)
+    na_data <- as.data.frame(matrix(NA, ncol = ncol(data), nrow = needed))
+    colnames(na_data) <- colnames(data)
+    data <- rbind(data, na_data)
+  }
+  
+  # Select the columns of interest
+  selected_data <- data[c('ParticipantID', 'workerId', 'binary_question_key_resp.keys', 'binary_question_key_resp.rt', 'slider_confidence.response', 'slider_confidence.rt', 'condition', 'movie1')]
+  
+  # Rename columns to avoid name clashes
+  colnames(selected_data) <- paste0(colnames(selected_data), "_", i)
+  
+  # Append the data to the final data frame
+  if(ncol(all_participants_incl_outliers) == 0) {
+    all_participants_incl_outliers <- selected_data
+  } else {
+    all_participants_incl_outliers <- cbind(all_participants_incl_outliers, selected_data)
+  }
+}
+
+# Save the final data frame (named all_participants_incl_outliers) to a CSV file
+write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Exclude Outliers Based on Response Times 
+# -----------------------------------------------------------------------------------
+
+all_participants <- read.csv("all_participants_incl_outliers.csv")
+
+for (i in 1:78) {
+  
+  # Construct column names dynamically for each participant
+  rt_col <- paste0("binary_question_key_resp.rt_", i)
+  keys_col <- paste0("binary_question_key_resp.keys_", i)
+  conf_resp_col <- paste0("slider_confidence.response_", i)
+  conf_rt_col <- paste0("slider_confidence.rt_", i)
+  
+  # -----------------------------------------------------------------------------------
+  # Exclude Responses with RTs Below 0.844s for Binary Response
+  # -----------------------------------------------------------------------------------
+  # Check for values below 0.844 and set corresponding rows to NA
+  below_threshold <- !is.na(all_participants_incl_outliers[[rt_col]]) & all_participants_incl_outliers[[rt_col]] < 0.844
+  
+  all_participants_incl_outliers[[rt_col]][below_threshold] <- NA
+  all_participants_incl_outliers[[keys_col]][below_threshold] <- NA
+  all_participants_incl_outliers[[conf_resp_col]][below_threshold] <- NA
+  all_participants_incl_outliers[[conf_rt_col]][below_threshold] <- NA
+  
+  # -----------------------------------------------------------------------------------
+  # Exclude Responses with RTs Below 0.344s for Confidence Ratings
+  # -----------------------------------------------------------------------------------
+  # Check for values below 0.344 in slider_confidence.rt_ and set corresponding rows to NA
+  below_threshold_conf_rt <- !is.na(all_participants_incl_outliers[[conf_rt_col]]) & all_participants_incl_outliers[[conf_rt_col]] < 0.344
+  all_participants_incl_outliers[[conf_resp_col]][below_threshold_conf_rt] <- NA
+  all_participants_incl_outliers[[conf_rt_col]][below_threshold_conf_rt] <- NA
+  }
+
+# Save the dataframe as a CSV file with the same name as the input
+write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Notes on Exclusion Criteria
+# -----------------------------------------------------------------------------------
+
+# 1. **RTs Below 0.844s for Binary Response**:
+#    - These responses were considered **too fast** to be reliable.
+#    - The corresponding **binary response, confidence response, and confidence RT** were set to NA.
+
+# 2. **RTs Below 0.344s for Confidence Ratings**:
+#    - These trials were excluded because they are **likely guesses**.
+#    - Only **confidence responses** were set to NA (binary responses remained unaffected).
+
+# The final dataset **excludes unreliable responses** while maintaining **as much data as possible**.
+
+# -----------------------------------------------------------------------------------
+# Exclude Outliers Based on Response Times for Binary Response Using Boxplots
+# -----------------------------------------------------------------------------------
+
+# This section performs outlier exclusion based on response times (RTs)
+# using boxplots to identify extreme values. The exclusion is applied per experimental condition.
+
+# -----------------------------------------------------------------------------------
+# Load and Process Combined Dataset
+# -----------------------------------------------------------------------------------
+
+# Load the combined data frame
+all_participants <- read.csv("all_participants_incl_outliers.csv")
+
+# Initialize a list to store reaction times, including outliers, for each participant
+all_mean_RTs  <- list()
+
+# Define the experimental conditions
+conditions <- c("HSDP", "HSDA", "LSDP", "LSDA")
+
+# -----------------------------------------------------------------------------------
+# Compute Mean RT for Each Participant Across Conditions
+# -----------------------------------------------------------------------------------
+
+# Loop through each participant
+for (i in 1:78) {
+  participant_mean_RT <- list()
+  
+  for (condition in conditions) {
+    response_time_col_name <- paste("binary_question_key_resp.rt_", i, sep = "")
+    condition_col_name <- paste("condition_", i, sep = "")
+    
+    # Correctly extracting rows starting from the 10th row THEN filtering by condition
+    condition_data <- all_participants[9:nrow(all_participants), ] %>%
+      filter(!!sym(condition_col_name) == condition)
+    
+    mean_rt <- mean(condition_data[[response_time_col_name]], na.rm = TRUE)
+    
+    participant_mean_RT[[condition]] <- mean_rt
+  }
+  
+  all_mean_RTs[[paste("Participant", i)]] <- participant_mean_RT
+}
+
+# Convert the nested list 'all_mean_RTs' into a dataframe
+# Each element of the list represents a participant and each participant has mean RTs for each condition
+all_mean_RTs_df <- bind_rows(lapply(names(all_mean_RTs), function(participant) {
+  bind_rows(lapply(names(all_mean_RTs[[participant]]), function(condition) {
+    data.frame(
+      Participant = participant,
+      Condition = condition,
+      Mean_RT = all_mean_RTs[[participant]][[condition]],
+      stringsAsFactors = FALSE
+    )
+  }))
+}))
+
+# View the resulting dataframe
+print(all_mean_RTs_df)
+
+# Save the dataframe to a CSV file
+write.csv(all_mean_RTs_df, "all_mean_RTs_incl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Boxplot Analysis to Detect Outliers
+# -----------------------------------------------------------------------------------
+
+# Points that fall outside of the whiskers (1.5 times the interquartile range (IQR) above Q3 and below Q1) are considered outliers.
+# Load the results dataframe
+all_mean_RTs <- read.csv("all_mean_RTs_incl_outliers.csv")
+
+# Create new columns for synchrony (high/low) and directed motion (present/absent) based on the condition
+all_mean_RTs <- all_mean_RTs %>%
+  mutate(
+    synchrony = ifelse(grepl("HS", Condition), "High", "Low"),
+    directed_motion = ifelse(grepl("DP$", Condition), "Present", "Absent")
+  )
+
+# Reorder the 'Condition' factor levels to the desired order
+all_mean_RTs$Condition <- factor(all_mean_RTs$Condition, levels = c("HSDP", "LSDP", "HSDA", "LSDA"))
+
+# -----------------------------------------------------------------------------------
+# Compute Boxplot Statistics (IQR Boundaries)
+# -----------------------------------------------------------------------------------
+
+# Calculate IQR boundaries/Whiskers
+all_mean_RTs <- all_mean_RTs %>%
+  group_by(synchrony, directed_motion) %>%
+  mutate(
+    Q1 = quantile(Mean_RT, 0.25, na.rm = TRUE),  # First quartile
+    Q3 = quantile(Mean_RT, 0.75, na.rm = TRUE),  # Third quartile
+    IQR = Q3 - Q1,  # Interquartile range
+    Lower = Q1 - 1.5 * IQR,  # Lower whisker
+    Upper = Q3 + 1.5 * IQR  # Upper whisker
+  ) %>%
+  ungroup()
+
+# -----------------------------------------------------------------------------------
+# Print Condition-Specific IQR Bounds
+# -----------------------------------------------------------------------------------
+
+# Group by synchrony and directed motion and print the bounds for each condition
+bounds_by_condition <- all_mean_RTs %>%
+  group_by(synchrony, directed_motion) %>%
+  summarise(Lower = first(Lower), Upper = first(Upper))
+
+# Print the bounds_by_condition dataframe directly
+print(bounds_by_condition)
+
+# -----------------------------------------------------------------------------------
+# Generate Boxplot to Visualize Outliers -Colour-Scale
+# -----------------------------------------------------------------------------------
+
+# Create a boxplot with different colors for synchrony and absent/present conditions on x-axis
+ggplot(all_mean_RTs, aes(x = directed_motion, y = Mean_RT, fill = synchrony)) +
+  geom_boxplot(alpha = 0.6, color = "darkgrey") +
+  scale_fill_manual(values = c("High" = "orange", "Low" = "darkgreen")) +  # Set colors for synchrony
+  scale_x_discrete(limits = c("Present", "Absent")) +  # Ensure Present comes first on the x-axis
+  labs(
+    x = "Directed Motion", 
+    y = "Mean Response Time (Seconds)", 
+    fill = "Synchrony") +
+  theme_minimal() +
+  theme(
+    text = element_text(size = rel(2)),  # Adjust text size
+    plot.title = element_text(size = rel(4)),  # Plot title size
+    axis.title = element_text(size = rel(2)),  # Axis title size
+    axis.text = element_text(size = rel(2)),    # Axis text size
+    legend.title = element_text(size = rel(8)),  
+    legend.text = element_text(size = rel(8))    
+  )
+
+ggsave("boxplot_mean_RT_by_synchrony_and_motion_300DPI.png", 
+       width = 7, height = 5, dpi = 300, units = "in")
+# -----------------------------------------------------------------------------------
+# Exclude Outliers Based on Boxplot Thresholds 
+# -----------------------------------------------------------------------------------
+
+# Exclude responses above the following upper bound threshold (based on RTs for binary response)
+
+#HSDP      -0.120   8.82
+#LSDP      -1.78   15.1 
+#HSDA       0.0566 12.0 
+#LSDA      -1.82   12.9
+
+data <- read.csv("all_participants_incl_outliers.csv")
+
+# Define the experimental conditions and their respective thresholds
+conditions <- c("HSDP", "LSDP","HSDA", "LSDA")
+thresholds <- c(8.82, 15.1 , 12.0 , 12.9)
+
+# Loop through each participant (assuming there are 78 participants)
+for (i in 1:78) {
+  # Generate column names dynamically for the current participant
+  condition_col_name <- paste("condition_", i, sep = "")
+  rt_col_name <- paste("binary_question_key_resp.rt_", i, sep = "")
+  keys_col_name <- paste("binary_question_key_resp.keys_", i, sep = "")
+  confidence_response_col_name <- paste("slider_confidence.response_", i, sep = "")
+  confidence_rt_col_name <- paste("slider_confidence.rt_", i, sep = "")
+  
+  # Loop through each condition to apply the exclusion criteria
+  for (j in 1:length(conditions)) {
+    condition <- conditions[j]
+    threshold <- thresholds[j]
+    
+    # Apply the exclusion criteria
+    data <- data %>%
+      mutate(!!rt_col_name := ifelse((!!sym(condition_col_name) == condition) & (!!sym(rt_col_name) > threshold), NA, !!sym(rt_col_name)),
+             !!keys_col_name := ifelse(is.na(!!sym(rt_col_name)), NA, !!sym(keys_col_name)),
+             !!confidence_response_col_name := ifelse(is.na(!!sym(rt_col_name)), NA, !!sym(confidence_response_col_name)),
+             !!confidence_rt_col_name := ifelse(is.na(!!sym(rt_col_name)), NA, !!sym(confidence_rt_col_name)))
+  }
+}
+
+# Save the modified data to a new CSV file
+write.csv(data, "all_participants_excl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Summary of Exclusion Criteria
+# -----------------------------------------------------------------------------------
+
+# - Boxplot analysis was used to determine condition-specific RT thresholds.
+# - Responses above these thresholds were set to NA.
+# - Affected Data:
+#     - Binary responses
+#     - Confidence ratings
+#     - Confidence RTs
+# - Final dataset ("all_participants_excl_outliers.csv") contains only valid RTs.
+
+# -----------------------------------------------------------------------------------
+# Exclude Outliers Based on Response Times for Confidence Ratings Using Boxplots
+# -----------------------------------------------------------------------------------
+
+# This section performs data wrangling and outlier exclusion based on confidence RTs 
+# using boxplots to detect extreme values. The exclusion is applied per experimental condition.
+
+# -----------------------------------------------------------------------------------
+# Load and Process Combined Dataset
+# -----------------------------------------------------------------------------------
+
+# Load the modified data (after outlier exclusion)
+all_participants_excl_outliers <- read.csv("all_participants_excl_outliers.csv")
+
+# Initialize a list to store confidence RTs for each participant
+all_confidence_RTs <- list()
+
+# Define the experimental conditions
+conditions <- c("HSDP", "HSDA", "LSDP", "LSDA")
+
+# -----------------------------------------------------------------------------------
+# Compute Mean Confidence RT for Each Participant Across Conditions
+# -----------------------------------------------------------------------------------
+
+# Loop through each participant (assuming 78 participants)
+for (i in 1:78) {
+  participant_confidence_RT <- list()
+  
+  for (condition in conditions) {
+    confidence_rt_col_name <- paste("slider_confidence.rt_", i, sep = "")
+    condition_col_name <- paste("condition_", i, sep = "")
+    
+    # Filter the data by the current condition
+    condition_data <- all_participants_excl_outliers %>%
+      filter(!!sym(condition_col_name) == condition)
+    
+    # Calculate the mean confidence RT for the current condition and participant
+    mean_confidence_rt <- mean(condition_data[[confidence_rt_col_name]], na.rm = TRUE)
+    
+    # Store the mean RT for the current participant and condition
+    participant_confidence_RT[[condition]] <- mean_confidence_rt
+  }
+  
+  # Store the participant's confidence RT data in the list
+  all_confidence_RTs[[paste("Participant", i)]] <- participant_confidence_RT
+}
+
+# Convert the nested list 'all_confidence_RTs' into a dataframe
+all_confidence_RTs_df <- bind_rows(lapply(names(all_confidence_RTs), function(participant) {
+  bind_rows(lapply(names(all_confidence_RTs[[participant]]), function(condition) {
+    data.frame(
+      Participant = participant,
+      Condition = condition,
+      Confidence_RT = all_confidence_RTs[[participant]][[condition]],
+      stringsAsFactors = FALSE
+    )
+  }))
+}))
+
+# -----------------------------------------------------------------------------------
+# Add Condition Classification (Synchrony & Directed Motion)
+# -----------------------------------------------------------------------------------
+
+# Add new columns for synchrony (high/low) and directed motion (present/absent) based on the condition
+all_confidence_RTs_df <- all_confidence_RTs_df %>%
+  mutate(
+    synchrony = ifelse(grepl("HS", Condition), "High", "Low"),
+    directed_motion = ifelse(grepl("DP$", Condition), "Present", "Absent")
+  )
+
+# Convert 'synchrony' and 'directed_motion' to factors for plotting
+all_confidence_RTs_df$synchrony <- factor(all_confidence_RTs_df$synchrony, levels = c("High", "Low"))
+all_confidence_RTs_df$directed_motion <- factor(all_confidence_RTs_df$directed_motion, levels = c("Present", "Absent"))
+
+# -----------------------------------------------------------------------------------
+# Compute Boxplot Statistics (IQR Boundaries)
+# -----------------------------------------------------------------------------------
+
+# Calculate IQR boundaries/Whiskers for each condition
+all_confidence_RTs_df <- all_confidence_RTs_df %>%
+  group_by(Condition) %>%
+  mutate(
+    Q1 = quantile(Confidence_RT, 0.25, na.rm = TRUE),  # First quartile
+    Q3 = quantile(Confidence_RT, 0.75, na.rm = TRUE),  # Third quartile
+    IQR = Q3 - Q1,  # Interquartile range
+    Lower = Q1 - 1.5 * IQR,  # Lower whisker
+    Upper = Q3 + 1.5 * IQR   # Upper whisker
+  ) %>%
+  ungroup()
+
+# -----------------------------------------------------------------------------------
+# Print Condition-Specific IQR Bounds
+# -----------------------------------------------------------------------------------
+
+# Group by synchrony and directed motion and print the bounds for each condition
+bounds_by_condition <- all_confidence_RTs_df %>%
+  group_by(synchrony, directed_motion) %>%
+  summarise(Lower = first(Lower), Upper = first(Upper))
+
+# Print the bounds_by_condition dataframe directly
+print(bounds_by_condition)
+
+# -----------------------------------------------------------------------------------
+# Generate Boxplot to Visualize Outliers - Colour-Scale
+# -----------------------------------------------------------------------------------
+
+# Create a boxplot with high synchrony in orange and low synchrony in dark green, and directed motion on the x-axis
+ggplot(all_confidence_RTs_df, aes(x = directed_motion, y = Confidence_RT, fill = synchrony)) +
+  geom_boxplot(alpha = 0.6, color = "darkgrey") +
+  scale_fill_manual(values = c("High" = "orange", "Low" = "darkgreen")) +  # Set colors for synchrony
+  labs(
+    x = "Directed Motion", 
+    y = "Mean Response Time (Seconds)", 
+    fill = "Synchrony") +
+  theme_minimal() +
+  theme(
+    text = element_text(size = rel(2)),  
+    plot.title = element_text(size = rel(4)),  
+    axis.title = element_text(size = rel(2)),  
+    axis.text = element_text(size = rel(2)),    
+    legend.title = element_text(size = rel(8)),  
+    legend.text = element_text(size = rel(8)) 
+  )
+
+# Save the color plot with 300 DPI
+ggsave("boxplot_confidence_RT_by_synchrony_and_motion_300DPI.png", 
+       width = 7, height = 5, dpi = 300, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Exclude Outliers Based on Boxplot Thresholds
+# -----------------------------------------------------------------------------------
+
+# Exclude responses above the following upper bound threshold (based on RTs for binary response)
+
+#Condition   Lower Upper
+#<fct>      <dbl> <dbl>
+#1 HSDP      0.469  3.32
+#2 LSDP      0.429  3.66
+#3 HSDA      0.135  3.93
+#4 LSDA      0.115  3.91
+
+# Load the data
+data <- read.csv("all_participants_excl_outliers.csv")
+
+# Define the experimental conditions and their respective thresholds
+conditions <- c("HSDP", "HSDA", "LSDP", "LSDA")
+thresholds <- c(3.32, 3.66, 3.93, 3.91)
+
+# Loop through each participant (assuming there are 78 participants)
+for (i in 1:78) {
+  # Generate column names dynamically for the current participant
+  condition_col_name <- paste("condition_", i, sep = "")
+  confidence_rt_col_name <- paste("slider_confidence.rt_", i, sep = "")
+  confidence_response_col_name <- paste("slider_confidence.response_", i, sep = "")
+  
+  # Loop through each condition to apply the exclusion criteria
+  for (j in 1:length(conditions)) {
+    condition <- conditions[j]
+    threshold <- thresholds[j]
+    
+    # Apply the exclusion criteria only to the confidence response time and rating
+    data <- data %>%
+      mutate(!!confidence_rt_col_name := ifelse((!!sym(condition_col_name) == condition) & (!!sym(confidence_rt_col_name) > threshold), NA, !!sym(confidence_rt_col_name)),
+             !!confidence_response_col_name := ifelse(is.na(!!sym(confidence_rt_col_name)), NA, !!sym(confidence_response_col_name)))
+  }
+}
+
+# Save the modified data to a new CSV file
+write.csv(data, "all_participants_excl_outliers.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Summary of Exclusion Criteria
+# -----------------------------------------------------------------------------------
+
+# - Boxplot analysis was used to determine condition-specific confidence RT thresholds.
+# - Responses above these thresholds were set to NA.
+# - Affected Data:
+#     - Confidence response times
+#     - Confidence ratings
+# - Final dataset ("all_participants_excl_outliers.csv") contains only valid RTs.
+
+
+# -----------------------------------------------------------------------------------
+# Descriptive Analysis of Binary Responses
+# -----------------------------------------------------------------------------------
+
+# This section performs  summary statistics, and visualization
+# for binary question responses (Yes/No) excluding outliers
+
+# -----------------------------------------------------------------------------------
+# Load and Process Combined Dataset
+# -----------------------------------------------------------------------------------
+
+# Load the data excluding outliers
+all_participants_excl_outliers = read_csv("all_participants_excl_outliers.csv")
+
+# Initialize an empty list to store binary question results
+results_BQ <- list()
+
+# Define the experimental conditions
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+# -----------------------------------------------------------------------------------
+# Count Left vs. Right Responses per Condition and Participant
+# -----------------------------------------------------------------------------------
+
+# Loop through each participant
+for (i in 1:78) {
+  participant_results_BQ <- list()
+  
+  # Loop through each condition
+  for (condition in conditions) {
+    response_col_name <- paste("binary_question_key_resp.keys_", i, sep = "")
+    condition_col_name <- paste("condition_", i, sep = "")
+    
+    # Extract rows starting from the 10th row and filter by condition
+    condition_data <- all_participants_excl_outliers[9:nrow(all_participants_excl_outliers), ] %>%
+      filter(.data[[condition_col_name]] == condition)
+    
+    # Count the number of "left" and "right" responses
+    left_count <- sum(condition_data[[response_col_name]] == "left", na.rm = TRUE)
+    right_count <- sum(condition_data[[response_col_name]] == "right", na.rm = TRUE)
+    
+    # Store the counts in the participant's results list
+    participant_results_BQ[[condition]] <- list(Left = left_count, Right = right_count)
+  }
+  
+  # Store the participant's results in the main results list
+  results_BQ[[paste("Participant", i)]] <- participant_results_BQ
+}
+
+# Print the results list
+print(results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Convert Results to DataFrame
+# ----------------------------------------------------------------------------------
+
+# Convert the nested list into a dataframe
+# Transform the nested list into a structured dataframe
+results_BQ_df <- bind_rows(lapply(names(results_BQ), function(participant) {
+  lapply(names(results_BQ[[participant]]), function(condition) {
+    data.frame(
+      Participant = participant,
+      Condition = condition,
+      Left = results_BQ[[participant]][[condition]]$Left,
+      Right = results_BQ[[participant]][[condition]]$Right,
+      stringsAsFactors = FALSE
+    )
+  })
+}))
+
+# View the resulting dataframe
+print(results_BQ_df)
+
+# Save this dataframe to a CSV file
+write.csv(results_BQ_df, "results_BQ.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Compute Summary Statistics Across Participants
+# -----------------------------------------------------------------------------------
+
+# Calculate the total and average frequencies of "Left" responses across participants for each condition
+summed_and_averaged_results_BQ <- results_BQ_df %>%
+  group_by(Condition) %>%
+  summarise(
+    Total_Left = sum(Left, na.rm = TRUE),
+    Average_Left = mean(Left, na.rm = TRUE),
+    Count = n()
+  )
+
+# Print the summarized results
+print(summed_and_averaged_results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Standard Deviation
+# -----------------------------------------------------------------------------------
+
+# Calculate the standard deviation of "Left" responses for each condition
+std_dev_results_BQ <- results_BQ_df %>%
+  group_by(Condition) %>%
+  summarise(StdDev_Left = sd(Left, na.rm = TRUE))
+
+# Print the standard deviation results
+print(std_dev_results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Variance
+# -----------------------------------------------------------------------------------
+
+# Calculate the variance of "Left" responses for each condition
+variance_results_BQ <- results_BQ_df %>%
+  group_by(Condition) %>%
+  summarise(Variance_Left = var(Left, na.rm = TRUE))
+
+# Print the variance results
+print(variance_results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Standard Error of the Mean
+# -----------------------------------------------------------------------------------
+
+# Calculate the standard error of the mean (SEM) of "Left" responses for each condition
+sem_results_BQ <- results_BQ_df %>%
+  group_by(Condition) %>%
+  summarise(
+    SEM_Left = sd(Left, na.rm = TRUE) / sqrt(n())
+  )
+
+# Print the SEM results
+print(sem_results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Confidence Intervals
+# -----------------------------------------------------------------------------------
+
+# Calculate the confidence intervals for the mean "Left" responses for each condition
+ci_results_BQ <- results_BQ_df %>%
+  group_by(Condition) %>%
+  summarise(
+    Mean_Left = mean(Left, na.rm = TRUE),
+    SEM_Left = sd(Left, na.rm = TRUE) / sqrt(n()),
+    n = n()
+  ) %>%
+  mutate(
+    Lower_Bound = Mean_Left - qt(0.975, df = n-1) * SEM_Left,
+    Upper_Bound = Mean_Left + qt(0.975, df = n-1) * SEM_Left
+  )
+
+# Print the confidence interval results
+print(ci_results_BQ)
+
+# -----------------------------------------------------------------------------------
+# Merge All Results
+# -----------------------------------------------------------------------------------
+
+# Merge all results into a single dataframe by condition
+final_results_BQ <- left_join(summed_and_averaged_results_BQ, std_dev_results_BQ, by = "Condition") %>%
+  left_join(variance_results_BQ, by = "Condition") %>%
+  left_join(sem_results_BQ, by = "Condition") %>%
+  left_join(ci_results_BQ, by = "Condition")
+
+# View the final consolidated results
+print(final_results_BQ)
+
+# Save this dataframe to a CSV file
+write.csv(final_results_BQ, "final_results_BQ.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Generate Visualizations for Binary Response Frequencies for Individual Conditions
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Add Synchrony and Directed Motion Labels to DataFrames
+# -----------------------------------------------------------------------------------
+
+# Add Directed_Motion and Synchrony columns to results_BQ_df and final_results_BQ
+results_BQ_df <- results_BQ_df %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+final_results_BQ <- final_results_BQ %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+
+# -----------------------------------------------------------------------------------
+# Violin Plot: Direceted Motion on X-Axis, Colored by Synchrony
+# -----------------------------------------------------------------------------------
+
+p_violin_BQ <- ggplot() +
+  # Add violin plot, mapped by Synchrony for color
+  geom_violin(data = results_BQ_df, aes(x = Directed_Motion, y = Left, fill = Synchrony), 
+              position = position_dodge(width = 0.75), alpha = 0.5, trim = FALSE) +
+  # Add mean values with error bars on top of the violin plot
+  geom_point(data = final_results_BQ, aes(x = Directed_Motion, y = Mean_Left, color = Synchrony), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_BQ, aes(x = Directed_Motion, ymin = Lower_Bound, ymax = Upper_Bound, color = Synchrony), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  # Set colors for High and Low Synchrony
+  scale_fill_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  scale_color_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  # Reverse the order of Directed Motion on the x-axis to show Present on the left and Absent on the right
+  scale_x_discrete(limits = c("Present", "Absent")) +
+  # Add labels and themes
+  labs(
+    x = "Directed Motion",
+    y = "Number of Reported Purposeful Interactions",
+    fill = "Synchrony", color = "Synchrony") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  # Increase size of the "Synchrony" label
+        legend.text = element_text(size = rel(8)))   # Increase size of "High" and "Low"
+
+# Display the updated plot
+print(p_violin_BQ)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with the required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("BQ_violin_plot_color_300DPI.png", plot = p_violin_BQ, dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("BQ_violin_plot_grayscale_600DPI.png", 
+       plot = p_violin_BQ + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Line Plot: Mean Values with Error Bars and Connecting Lines
+# -----------------------------------------------------------------------------------
+
+p_line_BQ<- ggplot() +
+  # Add mean values with error bars on top of the violin plot
+  geom_point(data = final_results_BQ, aes(x = Synchrony, y = Mean_Left, color = Directed_Motion), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_BQ, aes(x = Synchrony, ymin = Lower_Bound, ymax = Upper_Bound, color = Directed_Motion), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  
+  # Add lines connecting mean points for "Present" and "Absent" within each Synchrony level
+  geom_line(data = final_results_BQ, aes(x = Synchrony, y = Mean_Left, group = Directed_Motion, color = Directed_Motion), 
+            position = position_dodge(width = 0.75), size = 1) +
+  
+  # Set colors for Directed Motion (Present = Orange, Absent = Green)
+  scale_fill_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  
+  # Reverse the order of Synchrony on the x-axis to show High and Low
+  scale_x_discrete(limits = c("High", "Low")) +
+  
+  # Add labels and themes
+  labs(
+       x = "Synchrony",
+       y = "Number of Reported Purposeful Interactions",
+       fill = "Directed Motion", color = "Directed Motion") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  
+        legend.text = element_text(size = rel(8)))   
+
+# Display the updated plot
+print(p_line_BQ)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with the required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("BQ_line_plot_color_300DPI.png", plot = p_line_BQ, dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("BQ_line_plot_grayscale_600DPI.png", plot = p_line_BQ + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Plotting Binary Question Response Distribution By Condition
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Load and Reshape Data
+# -----------------------------------------------------------------------------------
+
+# Load the data excluding outliers
+all_participants_excl_outliers = read_csv("all_participants_excl_outliers.csv")
+
+data_long_binary <- all_participants_excl_outliers %>%
+  pivot_longer(cols = starts_with("binary_question_key_resp.keys_"), 
+               names_to = "participant", 
+               names_prefix = "binary_question_key_resp.keys_", 
+               values_to = "response") %>%
+  mutate(Participant = as.integer(participant))
+
+# Reshape conditions columns if they follow a similar pattern
+# This assumes conditions are in columns like: Condition_1, Condition_2, ..., Condition_28
+data_long_binary <- data_long_binary %>%
+  pivot_longer(cols = starts_with("condition_"), 
+               names_to = "condition_participant", 
+               names_prefix = "condition_", 
+               values_to = "condition") %>%
+  mutate(condition_participant = as.integer(condition_participant)) %>%
+  filter(participant == condition_participant) %>%
+  select(-condition_participant)
+
+# -----------------------------------------------------------------------------------
+# Generate Bar Plots for Each Experimental Condition
+# -----------------------------------------------------------------------------------
+
+# Create a ggplot for each condition
+plot_list_binary <- list()
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+for (cond in conditions) {
+  p <- ggplot(data_long_binary %>% filter(condition == !!cond), aes(x = response)) +
+    geom_bar(fill = "grey", color = "grey", alpha = 0.6) +
+    labs(title = paste("Response Distribution for", cond),
+         x = "Response (Left = 1, Right = 0)", y = "Count") +
+    theme_minimal() +
+    theme(text = element_text(size = rel(1.5)),
+          plot.title = element_text(size = rel(2)),
+          axis.title = element_text(size = rel(1.5)),
+          axis.text = element_text(size = rel(1.2)))
+  plot_list_binary[[cond]] <- p
+}
+
+# Use grid.arrange to display all plots together
+do.call(grid.arrange, c(plot_list_binary, ncol = 2))
+
+# -----------------------------------------------------------------------------------
+# Descriptive Analysis of Response Times of Binary Response
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Load and Process Data
+# -----------------------------------------------------------------------------------
+
+# Load the data excluding outliers
+all_participants_excl_outliers = read_csv("all_participants_excl_outliers.csv")
+
+# Initialize a list to store each participant's results
+results_RT <- list()
+
+# Define the experimental conditions
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+# Loop through each participant
+for (i in 1:78) {
+  participant_results_RT <- list()
+  
+  # Loop through each condition
+  for (condition in conditions) {
+    response_time_col_name <- paste("binary_question_key_resp.rt_", i, sep = "")
+    condition_col_name <- paste("condition_", i, sep = "")
+    
+    # Extract rows starting from the 10th row and filter by condition
+    condition_data <- all_participants_excl_outliers[9:nrow(all_participants_excl_outliers), ] %>%
+      filter(!!sym(condition_col_name) == condition)
+    
+    # Calculate the mean reaction time for the current condition
+    mean_rt <- mean(condition_data[[response_time_col_name]], na.rm = TRUE)
+    
+    # Store the mean reaction time in the participant's results list
+    participant_results_RT[[condition]] <- mean_rt
+  }
+  
+  # Store the participant's results in the main results list
+  results_RT[[paste("Participant", i)]] <- participant_results_RT
+}
+
+# -----------------------------------------------------------------------------------
+# Convert Data to Dataframe
+# -----------------------------------------------------------------------------------
+
+# Convert the nested list into a more structured dataframe
+results_RT_df <- bind_rows(lapply(names(results_RT), function(participant) {
+  lapply(names(results_RT[[participant]]), function(condition) {
+    data.frame(
+      Participant = participant,
+      Condition = condition,
+      Mean_RT = results_RT[[participant]][[condition]],
+      stringsAsFactors = FALSE
+    )
+  })
+}))
+
+# View the resulting dataframe
+print(results_RT_df)
+
+# Save the dataframe to a CSV file
+write.csv(results_RT_df, "results_RT_df.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Compute Descriptive Statistics (Mean, SD, Variance, SEM, CI)
+# -----------------------------------------------------------------------------------
+
+final_results_RT <- results_RT_df %>%
+  group_by(Condition) %>%
+  summarise(
+    Overall_Mean_RT = mean(Mean_RT, na.rm = TRUE),
+    SD_RT = sd(Mean_RT, na.rm = TRUE),
+    Variance_RT = var(Mean_RT, na.rm = TRUE),
+    SEM_RT = SD_RT / sqrt(n()),
+    Lower_CI = Overall_Mean_RT - qt(0.975, n() - 1) * SEM_RT,
+    Upper_CI = Overall_Mean_RT + qt(0.975, n() - 1) * SEM_RT
+  )
+
+# View the extended aggregated statistics
+print(final_results_RT )
+
+# Save the extended aggregated statistics to a CSV file
+write.csv(final_results_RT , "final_results_RT.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Violin Plot: Directed Motion on X-Axis, Colored by Synchrony
+# -----------------------------------------------------------------------------------
+
+# Add Directed Motion and Synchrony columns to final_results_RT and results_RT_df
+final_results_RT <- final_results_RT %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+results_RT_df <- results_RT_df %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+## Create a violin plot with present & absent on x-axis, error bars, and mean values (for response time)
+p_violin_RT <- ggplot() +
+  # Add violin plot, mapped by Synchrony for color
+  geom_violin(data = results_RT_df, aes(x = Directed_Motion, y = Mean_RT, fill = Synchrony), 
+              position = position_dodge(width = 0.75), alpha = 0.5, trim = FALSE) +
+  # Add mean values with error bars on top of the violin plot
+  geom_point(data = final_results_RT, aes(x = Directed_Motion, y = Overall_Mean_RT, color = Synchrony), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_RT, aes(x = Directed_Motion, ymin = Lower_CI, ymax = Upper_CI, color = Synchrony), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  # Set colors for High and Low Synchrony
+  scale_fill_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  scale_color_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  # Reverse the order of Directed Motion on the x-axis to show Present on the left and Absent on the right
+  scale_x_discrete(limits = c("Present", "Absent")) +
+  # Add labels and themes
+  labs(
+       x = "Directed Motion",
+       y = "Mean Response Time (Seconds)",
+       fill = "Synchrony", color = "Synchrony") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  # Increase size of the "Synchrony" label
+        legend.text = element_text(size = rel(8)))   # Increase size of "High" and "Low"
+
+# Display the updated plot
+print(p_violin_RT)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("response_time_violin_plot_color_300DPI.png", plot = p_violin_RT, dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("response_time_violin_plot_grayscale_600DPI.png", 
+       plot = p_violin_RT + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Line Plot: Mean Values with Error Bars and Connecting Lines
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Generate Mean Response Time Plot with Synchrony on X-Axis (Formatted for Journal)
+# -----------------------------------------------------------------------------------
+
+p_line_RT <- ggplot() +
+  # Add mean values with error bars
+  geom_point(data = final_results_RT, aes(x = Synchrony, y = Overall_Mean_RT, color = Directed_Motion), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_RT, aes(x = Synchrony, ymin = Lower_CI, ymax = Upper_CI, color = Directed_Motion), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  
+  # Add lines connecting mean points for "Present" and "Absent" within each Synchrony level
+  geom_line(data = final_results_RT, aes(x = Synchrony, y = Overall_Mean_RT, group = Directed_Motion, color = Directed_Motion), 
+            position = position_dodge(width = 0.75), size = 1) +
+  
+  # Set colors for Directed Motion (Present = Orange, Absent = Green)
+  scale_fill_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  
+  # Reverse the order of Synchrony on the x-axis to show High and Low
+  scale_x_discrete(limits = c("High", "Low")) +
+  
+  # Add labels and themes
+  labs(
+       x = "Synchrony",
+       y = "Mean Response Time (ms)",
+       fill = "Directed Motion", color = "Directed Motion") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  # Increase size of the "Directed Motion" label
+        legend.text = element_text(size = rel(8)))   # Increase size of "Present" and "Absent"
+
+# Display the updated plot
+print(p_line_RT)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("response_time_line_plot_color_300DPI.png", plot = p_line_RT, dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("response_time_line_plot_600DPI.png", 
+       plot = p_line_RT + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Plotting Response Time Distribution By Condition
+# -----------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------------
+# Load and Reshape Data
+# -----------------------------------------------------------------------------------
+
+
+all_participants_excl_outliers = read_csv("all_participants_excl_outliers.csv")
+
+# Sample data frame creation for illustration purposes
+# Assuming your original data frame name is `data`
+
+# Create an example of reshaping
+data_long <- all_participants_excl_outliers %>%
+  pivot_longer(cols = starts_with("binary_question_key_resp.rt_"), 
+               names_to = "participant", 
+               names_prefix = "binary_question_key_resp.rt_", 
+               values_to = "RT") %>%
+  mutate(participant = as.integer(participant))
+
+# If conditions are labeled in columns like: `Condition_1, Condition_2, ..., Condition_28`
+data_long <- data_long %>%
+  pivot_longer(cols = starts_with("condition_"), 
+               names_to = "condition_participant", 
+               names_prefix = "condition_", 
+               values_to = "condition") %>%
+  mutate(condition_participant = as.integer(condition_participant)) %>%
+  filter(participant == condition_participant) %>%
+  select(-condition_participant)
+
+# Assuming you have a column 'Condition' for conditions and 'RT' for response times
+data_long <- data_long %>%
+  mutate(condition = factor(condition, levels = c("HSDP", "LSDP", "HSDA", "LSDA")))
+
+print(data_long)
+
+# -----------------------------------------------------------------------------------
+# Generate Bar Plots for Each Experimental Condition
+# -----------------------------------------------------------------------------------
+
+# Create a ggplot for each condition
+plot_list <- list()
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+for (cond in conditions) {
+  p <- ggplot(data_long %>% filter(condition == !!cond), aes(x = RT)) +
+    geom_density(fill = "grey", color = "grey", alpha = 0.6) +
+    labs(title = paste("Response Time Distribution for", cond),
+         x = "Response Time (RTs)", y = "Density") +
+    theme_minimal() +
+    theme(text = element_text(size = rel(1.5)),
+          plot.title = element_text(size = rel(2)),
+          axis.title = element_text(size = rel(1.5)),
+          axis.text = element_text(size = rel(1.2)))
+  plot_list[[cond]] <- p
+}
+
+# Print plots
+for (cond in conditions) {
+  print(plot_list[[cond]])
+}
+
+# Use grid.arrange to display all plots together
+do.call(grid.arrange, c(plot_list, ncol = 2))
+
+# -----------------------------------------------------------------------------------
+# Descriptive Statistics for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Load the data excluding outliers
+all_participants_excl_outliers <- read_csv("all_participants_excl_outliers_confidence.csv")
+
+# -----------------------------------------------------------------------------------
+# Compute Mean Confidence Ratings for Each Participant and Condition
+# -----------------------------------------------------------------------------------
+
+# Initialize a list to store each participant's results
+results_confidence <- list()
+
+# Define the experimental conditions
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+# Loop through each participant
+for (i in 1:78) {
+  participant_results_confidence <- list()
+  
+  # Loop through each condition
+  for (condition in conditions) {
+    response_col_name <- paste("slider_confidence.response_", i, sep = "")
+    condition_col_name <- paste("condition_", i, sep = "")
+    
+    # Extract rows starting from the 10th row and filter by condition
+    condition_data <- all_participants_excl_outliers[9:nrow(all_participants_excl_outliers), ] %>%
+      filter(!!sym(condition_col_name) == condition)
+    
+    # Calculate the mean confidence rating for the current condition
+    mean_confidence <- mean(condition_data[[response_col_name]], na.rm = TRUE)
+    
+    # Store the mean confidence rating in the participant's results list
+    participant_results_confidence[[condition]] <- mean_confidence
+  }
+  
+  # Store the participant's results in the main results list
+  results_confidence[[paste("Participant", i)]] <- participant_results_confidence
+}
+
+# Convert the nested list into a dataframe
+results_confidence_df <- bind_rows(lapply(names(results_confidence), function(participant) {
+  bind_rows(lapply(names(results_confidence[[participant]]), function(condition) {
+    data.frame(
+      Participant = participant,
+      Condition = condition,
+      Mean_Confidence = results_confidence[[participant]][[condition]],
+      stringsAsFactors = FALSE
+    )
+  }))
+}))
+
+# View the resulting dataframe
+print(results_confidence_df)
+
+# Save the dataframe to a CSV file
+write.csv(results_confidence_df, "results_confidence_df.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Compute Aggregated Statistics for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+final_results_confidence <- results_confidence_df %>%
+  group_by(Condition) %>%
+  summarise(
+    Overall_Mean_Confidence = mean(Mean_Confidence, na.rm = TRUE),
+    SD_Confidence = sd(Mean_Confidence, na.rm = TRUE),
+    Variance_Confidence = var(Mean_Confidence, na.rm = TRUE),
+    SEM_Confidence = SD_Confidence / sqrt(n()),
+    Lower_CI = Overall_Mean_Confidence - qt(0.975, df = n() - 1) * SEM_Confidence,
+    Upper_CI = Overall_Mean_Confidence + qt(0.975, df = n() - 1) * SEM_Confidence
+  )
+
+# View the aggregated statistics
+print(final_results_confidence)
+
+# Save the aggregated statistics to a CSV file
+write.csv(final_results_confidence, "final_results_confidence.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Violin Plot: Directed Motion on X-Axis, Colored by Synchrony
+# -----------------------------------------------------------------------------------
+
+# Add Directed Motion and Synchrony columns to final_results_confidence and results_confidence_df
+final_results_confidence <- final_results_confidence %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+results_confidence_df <- results_confidence_df %>%
+  mutate(
+    Directed_Motion = ifelse(Condition %in% c("HSDP", "LSDP"), "Present", "Absent"),
+    Synchrony = ifelse(Condition %in% c("HSDP", "HSDA"), "High", "Low")
+  )
+
+## Create a violin plot with present & absent on x-axis, error bars, and mean values (for confidence)
+p_violin_conf <- ggplot() +
+  # Add violin plot, mapped by Synchrony for color
+  geom_violin(data = results_confidence_df, aes(x = Directed_Motion, y = Mean_Confidence, fill = Synchrony), 
+              position = position_dodge(width = 0.75), alpha = 0.5, trim = FALSE) +
+  # Add mean values with error bars on top of the violin plot
+  geom_point(data = final_results_confidence, aes(x = Directed_Motion, y = Overall_Mean_Confidence, color = Synchrony), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_confidence, aes(x = Directed_Motion, ymin = Lower_CI, ymax = Upper_CI, color = Synchrony), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  # Set colors for High and Low Synchrony
+  scale_fill_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  scale_color_manual(values = c("High" = "orange", "Low" = "darkgreen")) +
+  # Reverse the order of Directed Motion on the x-axis to show Present on the left and Absent on the right
+  scale_x_discrete(limits = c("Present", "Absent")) +
+  # Add labels and themes
+  labs(
+       x = "Directed Motion",
+       y = "Mean Confidence",
+       fill = "Synchrony", color = "Synchrony") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  # Increase size of the "Synchrony" label
+        legend.text = element_text(size = rel(8)))   # Increase size of "High" and "Low"
+
+# Display the updated plot
+print(p_violin_conf)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("confidence_violin_plot_color_300DPI.png", plot = p_violin_conf , dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("confidence_violin_plot_grayscale_600DPI.png", 
+       plot = p_violin_conf + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+
+# -----------------------------------------------------------------------------------
+# Line Plot: Mean Values with Error Bars and Connecting Lines
+# -----------------------------------------------------------------------------------
+
+p_line_conf <- ggplot() +
+  # Add mean values with error bars
+  geom_point(data = final_results_confidence, aes(x = Synchrony, y = Overall_Mean_Confidence, color = Directed_Motion), 
+             position = position_dodge(width = 0.75), size = 3) +
+  geom_errorbar(data = final_results_confidence, aes(x = Synchrony, ymin = Lower_CI, ymax = Upper_CI, color = Directed_Motion), 
+                width = 0.2, position = position_dodge(width = 0.75)) +
+  
+  # Add lines connecting mean points for "Present" and "Absent" within each Synchrony level
+  geom_line(data = final_results_confidence, aes(x = Synchrony, y = Overall_Mean_Confidence, group = Directed_Motion, color = Directed_Motion), 
+            position = position_dodge(width = 0.75), size = 1) +
+  
+  # Set colors for Directed Motion (Present = Orange, Absent = Green)
+  scale_fill_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  scale_color_manual(values = c("Present" = "orange", "Absent" = "darkgreen")) +
+  
+  # Reverse the order of Synchrony on the x-axis to show High and Low
+  scale_x_discrete(limits = c("High", "Low")) +
+  
+  # Add labels and themes
+  labs(
+       x = "Synchrony",
+       y = "Mean Confidence",
+       fill = "Directed Motion", color = "Directed Motion") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        text = element_text(size = rel(2)),
+        axis.title = element_text(size = rel(2)),
+        axis.text = element_text(size = rel(2)),
+        plot.title = element_text(size = rel(8)),
+        legend.title = element_text(size = rel(8)),  # Increase size of the "Directed Motion" label
+        legend.text = element_text(size = rel(8)))   # Increase size of "Present" and "Absent"
+
+# Display the updated plot
+print(p_line_conf)
+
+# -----------------------------------------------------------------------------------
+# Save the plot with required resolution (DPI)
+# -----------------------------------------------------------------------------------
+
+# Save in high resolution for color images (300 DPI)
+ggsave("confidence_line_plot_color_300DPI.png", plot = p_line_conf, dpi = 300, width = 7, height = 5, units = "in")
+
+# Save in high resolution for grayscale images (600 DPI)
+ggsave("confidence_line_plot_grayscale_600DPI.png", 
+       plot = p_line_conf + scale_color_grey() + scale_fill_grey(), 
+       dpi = 600, width = 7, height = 5, units = "in")
+
+# -----------------------------------------------------------------------------------
+# Plot Confidence Rating Distribution for Each Condition
+# -----------------------------------------------------------------------------------
+
+all_participants_excl_outliers = read_csv("all_participants_excl_outliers.csv")
+
+# Reshape the confidence ratings from wide to long format
+data_long_confidence <- all_participants_excl_outliers %>%
+  pivot_longer(cols = starts_with("slider_confidence.response_"), 
+               names_to = "participant", 
+               names_prefix = "slider_confidence.response_", 
+               values_to = "confidence") %>%
+  mutate(participant = as.integer(participant))
+
+# -----------------------------------------------------------------------------------
+# Reshape Confidence Ratings Data from Wide to Long Format
+# -----------------------------------------------------------------------------------
+
+# This assumes conditions are in columns like: Condition_1, Condition_2, ..., Condition_28
+data_long_confidence <- data_long_confidence %>%
+  pivot_longer(cols = starts_with("condition_"), 
+               names_to = "condition_participant", 
+               names_prefix = "condition_", 
+               values_to = "condition") %>%
+  mutate(condition_participant = as.integer(condition_participant)) %>%
+  filter(participant == condition_participant) %>%
+  select(-condition_participant)
+
+# -----------------------------------------------------------------------------------
+# Ensure Factor Levels for Conditions and Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+data_long_confidence <- data_long_confidence %>%
+  mutate(condition = factor(condition, levels = c("HSDP", "LSDP", "HSDA", "LSDA")))
+
+# Ensure Confidence is treated as a factor with levels 1 to 5
+data_long_confidence <- data_long_confidence %>%
+  mutate(confidence = factor(confidence, levels = 1:5))
+
+# -----------------------------------------------------------------------------------
+# Generate Confidence Rating Distribution Plots for Each Condition
+# -----------------------------------------------------------------------------------
+
+# Create a ggplot for each condition
+plot_list_confidence <- list()
+conditions <- c("HSDP", "LSDP", "HSDA", "LSDA")
+
+for (cond in conditions) {
+  p <- ggplot(data_long_confidence %>% filter(condition == !!cond), aes(x = confidence)) +
+    geom_bar(fill = "grey", color = "grey", alpha = 0.6) +
+    labs(title = paste("Confidence Ratings Distribution for", cond),
+         x = "Confidence Rating (1-5)", y = "Count") +
+    theme_minimal() +
+    theme(text = element_text(size = rel(1.5)),
+          plot.title = element_text(size = rel(2)),
+          axis.title = element_text(size = rel(1.5)),
+          axis.text = element_text(size = rel(1.2)))
+  plot_list_confidence[[cond]] <- p
+}
+
+# Use grid.arrange to display all plots together
+do.call(grid.arrange, c(plot_list_confidence, ncol = 2))
+
+# -----------------------------------------------------------------------------------
+# Regression Data-Wrangling
+# -----------------------------------------------------------------------------------
+
+# Read in the combined dataset
+all_participants_excl_outliers <- read_csv("all_participants_excl_outliers.csv")
+
+# Initialize an empty dataframe to store the reshaped data
+regression_input <- data.frame()
+
+# Loop through each participant
+for (i in 1:78) {
+  # Dynamically generate column names for the current participant
+  participant_columns <- c(paste0("ParticipantID_", i), paste0("binary_question_key_resp.keys_", i), 
+                           paste0("binary_question_key_resp.rt_", i), paste0("slider_confidence.response_", i), 
+                           paste0("condition_", i))
+  
+  # Extract columns for the current participant, selecting rows 10 to 50
+  participant_data <- all_participants_excl_outliers %>%
+    dplyr::select(all_of(participant_columns)) %>%
+    dplyr::slice(9:48)  # Selecting rows 9 to 48 (since indices are inclusive)
+  
+  # Rename columns to remove the participant index and make them consistent
+  colnames(participant_data) <- c("ParticipantID", "binary_question_key_resp.keys", 
+                                  "binary_question_key_resp.rt", "slider_confidence.response", 
+                                  "condition")
+  
+  # Add a column for the participant ID
+  participant_data$participant <- i
+  
+  # Bind the data for the current participant to the reshaped data frame
+  regression_input <- bind_rows(regression_input, participant_data)
+}
+
+# View the resulting reshaped dataframe
+print(regression_input)
+
+# Save the resulting dataframe to a CSV file
+write.csv(regression_input, "regression_input.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Mixed-Effects Regression: Binary Response (Factorial Design)
+# -----------------------------------------------------------------------------------
+
+# Read your original dataset
+regression_input <- read.csv("regression_input.csv")
+
+# Create the CrossCorrelation column
+regression_input$correlation <- ifelse(grepl("HS", regression_input$condition), "high", "low")
+
+# Create the Interaction column
+regression_input$interaction <- ifelse(grepl("DA$", regression_input$condition), "absent", "present")
+
+# Convert the new columns to factors if necessary
+regression_input$correlation <- as.factor(regression_input$correlation)
+regression_input$interaction <- as.factor(regression_input$interaction)
+
+# Save the updated dataframe
+write.csv(regression_input, "factorial_regression_input.csv", row.names = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Prepare Data for Logistic Regression (Binary Response)
+# -----------------------------------------------------------------------------------
+
+# Load the regression input data
+regression_input <- read_csv("factorial_regression_input.csv")
+
+# Recode binary responses
+# left = 1; right = 0; handle NAs
+regression_input$binary_question_key_resp.keys <- ifelse(
+  regression_input$binary_question_key_resp.keys == "left", "1",
+  ifelse(regression_input$binary_question_key_resp.keys == "right", "0", NA)
+)
+
+# Check if the recoding was successful and view a summary
+summary(regression_input$binary_question_key_resp.keys)
+
+# Print the updated dataframe
+print (regression_input)
+
+# Convert to factors if necessary
+regression_input$correlation <- as.factor(regression_input$correlation)
+regression_input$interaction <- as.factor(regression_input$interaction)
+regression_input$binary_question_key_resp.keys <- as.factor(regression_input$binary_question_key_resp.keys)
+
+# Correct factor levels before applying effect coding
+regression_input$correlation <- factor(regression_input$correlation, levels = c("low", "high"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("absent", "present"))
+
+# Set effect coding (sum coding) instead of dummy coding
+contrasts(regression_input$correlation) <- contr.sum(2)  # Effect coding for correlation
+contrasts(regression_input$interaction) <- contr.sum(2)  # Effect coding for interaction
+
+# -----------------------------------------------------------------------------------
+# Fit Logistic Regression Models (Binary Response)
+# -----------------------------------------------------------------------------------
+
+binary_model_mixed <- glmer(binary_question_key_resp.keys ~ correlation * interaction + (1 | participant),
+                            family = binomial, data = regression_input)
+
+# Fit a logistic regression model with interaction terms (without mixed-effects)
+binary_model_standard <- glm(binary_question_key_resp.keys ~ correlation * interaction, 
+                             family = binomial, data = regression_input)
+
+
+# Fit a mixed-effects logistic regression model without interaction terms
+binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.keys ~ correlation + interaction + (1 | participant),
+                                           family = binomial, data = regression_input)
+
+# Fit a mixed-effects logistic regression model only one predictor
+binary_model_mixed_only_interaction <- glmer(binary_question_key_resp.keys ~  interaction + (1 | participant),
+                                           family = binomial, data = regression_input)
+
+# Fit a mixed-effects logistic regression model only one predictor
+binary_model_mixed_only_correlation <- glmer(binary_question_key_resp.keys ~ correlation  + (1 | participant),
+                                           family = binomial, data = regression_input)
+
+# Fit a mixed-effects logistic regression model with interaction terms
+# Specify control settings if you're having convergence issues, otherwise, this might be optional
+# control <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1000))
+# control <- glmerControl(optimizer = "nloptwrap")
+
+# Summarize the model results
+summary(binary_model_mixed) 
+summary(binary_model_standard) 
+summary (binary_model_mixed_no_interaction)
+summary (binary_model_mixed_only_interaction)
+summary (binary_model_mixed_only_correlation )
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Binary Response
+# -----------------------------------------------------------------------------------
+
+# Get estimated marginal means
+emm <- emmeans(binary_model_mixed, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
+# Get estimated marginal means
+emm <- emmeans(binary_model_standard, ~ correlation | interaction) # Effect of synchrony at each motion level
+emm2 <- emmeans(binary_model_standard, ~ interaction | correlation) # Effect of motion at each synchrony level
+
+# Test simple effects: Synchrony at each level of Directed Motion
+contrast(emm, method = "pairwise", adjust = "bonferroni") 
+
+# Test simple effects: Directed Motion at each level of Synchrony
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Comparisons for Binary Response
+# -----------------------------------------------------------------------------------
+
+# Perform post-hoc comparisons using the emmeans package
+emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
+comparisons_binary_mixed<- pairs(emm)
+
+emm <- emmeans(binary_model_standard, ~ correlation * interaction)
+comparisons_binary_standard<- pairs(emm)
+
+# Print the pairwise comparisons
+summary(comparisons_binary_mixed)
+summary(comparisons_binary_standard)
+
+# -----------------------------------------------------------------------------------
+# Mixed-Effects Regression: Response Times (Factorial Design)
+# -----------------------------------------------------------------------------------
+
+# Read the dataset
+regression_input <- read.csv("factorial_regression_input.csv")
+
+# Convert reaction times to numeric
+regression_input$binary_question_key_resp.rt <- as.numeric(regression_input$binary_question_key_resp.rt)
+
+# Convert to factors if necessary
+regression_input$correlation <- as.factor(regression_input$correlation)
+regression_input$interaction <- as.factor(regression_input$interaction)
+
+# Correct factor levels before applying effect coding
+regression_input$correlation <- factor(regression_input$correlation, levels = c("low", "high"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("absent", "present"))
+
+# Set effect coding (sum coding) instead of dummy coding
+contrasts(regression_input$correlation) <- contr.sum(2)  # Effect coding for correlation
+contrasts(regression_input$interaction) <- contr.sum(2)  # Effect coding for interaction
+
+# -----------------------------------------------------------------------------------
+# Fit Generalized Linear Mixed-Effects Models (Gamma Regression for RTs)
+# -----------------------------------------------------------------------------------
+
+#gamma_regression_model_mixed <- glmer(binary_question_key_resp.rt ~ correlation * interaction + (1 | participant),                                      #family = Gamma(link = "log"), data = regression_input)
+# this lead to convergence issues
+
+# Alternative:
+gamma_regression_model_mixed <- glmer(
+  binary_question_key_resp.rt ~ correlation * interaction + (1 | participant),
+  family = Gamma(link = "log"), 
+  data = regression_input,
+  control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
+)
+
+gamma_regression_model_standard <- glm(binary_question_key_resp.rt ~ correlation * interaction, 
+                                       family = Gamma(link = "log"), data = regression_input)
+
+
+# Fit a mixed-effects linear regression model for reaction times without interaction terms
+binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.rt ~ correlation + interaction + (1 | participant),
+                                           family = Gamma(link = "log"), data = regression_input)
+
+
+# Summarize the model results
+summary(gamma_regression_model_mixed)
+summary(gamma_regression_model_standard)
+summary(binary_model_mixed_no_interaction)
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Response Times
+# -----------------------------------------------------------------------------------
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(gamma_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(gamma_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Comparisons for Response Times
+# -----------------------------------------------------------------------------------
+
+# Perform post-hoc comparisons using the emmeans package
+emm <- emmeans(gamma_regression_model_mixed, ~ correlation * interaction)
+comparisons_gamma_mixed <- pairs(emm, adjust = "tukey")
+
+emm <- emmeans(gamma_regression_model_standard, ~ correlation * interaction)
+comparisons_gamma_standard <- pairs(emm, adjust = "tukey")
+
+# Print the pairwise comparisons
+summary(comparisons_gamma_mixed)
+summary(comparisons_gamma_standard)
+
+# -----------------------------------------------------------------------------------
+# Mixed-Effects Regression: Confidence Ratings (Factorial Design)
+# -----------------------------------------------------------------------------------
+
+# Read the updated dataset
+regression_input <- read.csv("factorial_regression_input.csv")
+
+# Convert confidence ratings to an ordered factor
+regression_input$slider_confidence.response<- factor(regression_input$slider_confidence.response, ordered = TRUE)
+
+# Convert to factors if necessary
+regression_input$correlation <- as.factor(regression_input$correlation)
+regression_input$interaction <- as.factor(regression_input$interaction)
+
+# Correct factor levels before applying effect coding
+regression_input$correlation <- factor(regression_input$correlation, levels = c("low", "high"))
+regression_input$interaction <- factor(regression_input$interaction, levels = c("absent", "present"))
+
+# Set effect coding (sum coding) instead of dummy coding
+contrasts(regression_input$correlation) <- contr.sum(2)  # Effect coding for correlation
+contrasts(regression_input$interaction) <- contr.sum(2)  # Effect coding for interaction
+
+# -----------------------------------------------------------------------------------
+# Fit Ordinal Regression Models for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Fit a cumulative link model (CLM) for ordinal responses with interaction terms
+ordinal_regression_model_standard <- clm(slider_confidence.response ~ correlation * interaction, data = regression_input)
+ordinal_regression_model_mixed <- clmm(slider_confidence.response ~ correlation * interaction + (1 | participant), data = regression_input)
+
+# Fit a cumulative link model (CLM) for ordinal responses without interaction terms
+binary_model_mixed_no_interaction <- clmm(slider_confidence.response ~ correlation + interaction + (1 | participant),
+                                          data = regression_input)
+
+# Summarize the model results
+summary(ordinal_regression_model_mixed)
+summary(ordinal_regression_model_standard)
+summary(binary_model_mixed_no_interaction)
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Simple Effects for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_mixed, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_mixed, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+emm_dm <- emmeans(ordinal_regression_model_standard, ~ interaction | correlation)
+contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
+
+# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
+emm_sync <- emmeans(ordinal_regression_model_standard, ~ correlation | interaction)
+contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
+
+# -----------------------------------------------------------------------------------
+# Post-Hoc Comparisons for Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Perform post-hoc comparisons using the emmeans package
+emm <- emmeans(ordinal_regression_model_mixed, ~ correlation * interaction)
+comparisons_ordinal_mixed <- emm %>% pairs(adjust = "tukey")
+
+emm <- emmeans(ordinal_regression_model_standard, ~ correlation * interaction)
+comparisons_ordinal_standard <- emm %>% pairs(adjust = "tukey")
+
+# Print the pairwise comparisons
+summary(comparisons_ordinal_mixed)
+summary(comparisons_ordinal_standard)
