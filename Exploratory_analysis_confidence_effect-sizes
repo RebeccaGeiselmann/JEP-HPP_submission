@@ -1,0 +1,127 @@
+# -----------------------------------------------------------------------------------
+# Exploratory Analysis: Binary Response Effects on Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+# Load necessary libraries
+library(dplyr)
+library(readr)
+library(effsize)
+
+# -----------------------------------------------------------------------------------
+# Data-Wrangling
+# -----------------------------------------------------------------------------------
+
+# Set working directory
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+
+# Read in the dataset
+all_participants_excl_outliers <- read_csv("all_participants_excl_outliers.csv")
+
+# Initialize an empty data frame for reshaped data
+input <- data.frame()
+
+# Extract and reshape relevant columns for each participant
+for (i in 1:78) {
+  # Construct column names dynamically for each participant
+  participant_id_col <- paste0("ParticipantID_", i)
+  binary_resp_col <- paste0("binary_question_key_resp.keys_", i)
+  confidence_col <- paste0("slider_confidence.response_", i)
+  condition_col <- paste0("condition_", i)
+  
+  # Subset and rename columns
+  temp_data <- all_participants_excl_outliers %>%
+    select(!!participant_id_col, !!binary_resp_col, !!confidence_col, !!condition_col) %>%
+    rename(
+      ParticipantID = !!participant_id_col,
+      binary_response = !!binary_resp_col,
+      confidence_rating = !!confidence_col,
+      condition = !!condition_col
+    ) %>%
+    mutate(
+      binary_response = ifelse(binary_response == "left", 1, 
+                               ifelse(binary_response == "right", 0, NA)), # Recode binary response
+      synchrony = ifelse(grepl("HS", condition), "high", "low"), # Extract synchrony condition
+      directed_motion = ifelse(grepl("DP", condition), "present", "absent") # Extract motion condition
+    )
+  
+  # Append to main dataframe
+  input <- bind_rows(input, temp_data)
+}
+
+# Convert variables to factors
+input <- input %>%
+  mutate(
+    synchrony = factor(synchrony, levels = c("high", "low")),
+    directed_motion = factor(directed_motion, levels = c("present", "absent")),
+    binary_response = factor(binary_response, levels = c(1, 0), labels = c("yes", "no"))
+  )
+
+# -----------------------------------------------------------------------------------
+# Function to Compute Cliff’s Delta
+# -----------------------------------------------------------------------------------
+compute_cliffs_delta <- function(x1, x2) {
+  delta <- cliff.delta(x1, x2)
+  return(delta$estimate)
+}
+# -----------------------------------------------------------------------------------
+# Compute Main Effect of Binary Response on Confidence Ratings
+# -----------------------------------------------------------------------------------
+
+cliffs_delta_binary <- compute_cliffs_delta(
+  input %>% filter(binary_response == "yes") %>% pull(confidence_rating),
+  input %>% filter(binary_response == "no") %>% pull(confidence_rating)
+)
+# -----------------------------------------------------------------------------------
+# Compute Binary Response × Synchrony Interaction
+# -----------------------------------------------------------------------------------
+cliffs_delta_binary_sync <- compute_cliffs_delta(
+  input %>% filter(binary_response == "yes", synchrony == "high") %>% pull(confidence_rating),
+  input %>% filter(binary_response == "no", synchrony == "high") %>% pull(confidence_rating)
+)
+
+cliffs_delta_binary_sync_low <- compute_cliffs_delta(
+  input %>% filter(binary_response == "yes", synchrony == "low") %>% pull(confidence_rating),
+  input %>% filter(binary_response == "no", synchrony == "low") %>% pull(confidence_rating)
+)
+# -----------------------------------------------------------------------------------
+# Compute Binary Response × Directed Motion Interaction
+# -----------------------------------------------------------------------------------
+
+cliffs_delta_binary_motion <- compute_cliffs_delta(
+  input %>% filter(binary_response == "yes", directed_motion == "present") %>% pull(confidence_rating),
+  input %>% filter(binary_response == "no", directed_motion == "present") %>% pull(confidence_rating)
+)
+
+cliffs_delta_binary_motion_absent <- compute_cliffs_delta(
+  input %>% filter(binary_response == "yes", directed_motion == "absent") %>% pull(confidence_rating),
+  input %>% filter(binary_response == "no", directed_motion == "absent") %>% pull(confidence_rating)
+)
+
+# -----------------------------------------------------------------------------------
+# Compute Three-Way Interaction: Binary Response × Synchrony × Directed Motion
+# -----------------------------------------------------------------------------------
+
+# Compute Cliff’s Delta for each condition
+cliffs_delta_conditions <- input %>%
+  group_by(synchrony, directed_motion) %>%
+  summarise(
+    cliffs_delta = compute_cliffs_delta(
+      confidence_rating[binary_response == "yes"], 
+      confidence_rating[binary_response == "no"]
+    ),
+    .groups = "drop"
+  )
+
+# Compute variability of Cliff’s Delta values across conditions
+three_way_interaction_effect <- sd(cliffs_delta_conditions$cliffs_delta, na.rm = TRUE)
+
+# -----------------------------------------------------------------------------------
+# Print Results
+# -----------------------------------------------------------------------------------
+
+print(paste("Cliff's Delta for Binary Response (Yes vs. No):", cliffs_delta_binary))
+print(paste("Cliff's Delta for Binary Response × Synchrony (High):", cliffs_delta_binary_sync))
+print(paste("Cliff's Delta for Binary Response × Synchrony (Low):", cliffs_delta_binary_sync_low))
+print(paste("Cliff's Delta for Binary Response × Directed Motion (Present):", cliffs_delta_binary_motion))
+print(paste("Cliff's Delta for Binary Response × Directed Motion (Absent):", cliffs_delta_binary_motion_absent))
+print(paste("Three-Way Interaction Effect (Binary Response × Synchrony × Directed Motion):", three_way_interaction_effect))
