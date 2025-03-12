@@ -18,6 +18,9 @@ library(dplyr)
 # Load Data
 # -----------------------------------------------------------------------------------
 
+# Clear the workspace
+rm(list = ls())
+
 # Set the working directory 
 setwd("")
 
