@@ -14,6 +14,8 @@ library(effsize)
 library(effectsize)
 library(epitools)
 
+# Set the working directory 
+setwd("")
 
 # Load datasets
 experiment1 <- read_csv("factorial_regression_input_3.csv")
