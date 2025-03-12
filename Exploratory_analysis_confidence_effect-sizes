@@ -11,6 +11,9 @@ library(effsize)
 # Data-Wrangling
 # -----------------------------------------------------------------------------------
 
+# Clear the workspace
+rm(list = ls())
+
 # Set the working directory 
 setwd("")
 
