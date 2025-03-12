@@ -14,6 +14,9 @@ library(effsize)
 library(effectsize)
 library(epitools)
 
+# Clear the workspace
+rm(list = ls())
+
 # Set the working directory 
 setwd("")
 
