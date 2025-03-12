@@ -26,6 +26,9 @@ library(ggplot2)
 # Power Analysis for Binary Response (Yes/No)
 # -----------------------------------------------------------------------------------
 
+# Clear the workspace
+rm(list = ls())
+
 # Set the working directory 
 setwd("")
 
