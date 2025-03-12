@@ -9,8 +9,8 @@ library(caret)      # For cross-validation (createFolds)
 # Clear the workspace
 rm(list = ls())
 
-# Set working directory (adjust as needed)
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 # -----------------------------------------------------------
 # FUNCTION: EZ-diffusion model (EZ-DM) implementation
