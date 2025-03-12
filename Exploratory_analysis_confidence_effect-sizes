@@ -11,8 +11,8 @@ library(effsize)
 # Data-Wrangling
 # -----------------------------------------------------------------------------------
 
-# Set working directory
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/excl_outliers")
+# Set the working directory 
+setwd("")
 
 # Read in the dataset
 all_participants_excl_outliers <- read_csv("all_participants_excl_outliers.csv")
