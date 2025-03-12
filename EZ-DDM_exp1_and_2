@@ -1,0 +1,138 @@
+# -----------------------------------------------------------
+# EZ-diffusion model for the 1st and 2nd Experiment
+# -----------------------------------------------------------
+
+# Load necessary libraries
+library(tidyverse)  # For data manipulation
+library(caret)      # For cross-validation (createFolds)
+
+# Clear the workspace
+rm(list = ls())
+
+# Set working directory (adjust as needed)
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/excl_outliers")
+
+# -----------------------------------------------------------
+# FUNCTION: EZ-diffusion model (EZ-DM) implementation
+# -----------------------------------------------------------
+
+EZ_model = function(Pc, VRT, MRT, model_type = "full", fixed_v = NULL, fixed_a = NULL, n = length(Pc), s = 1.) {
+  s2 = s^2  # Squared scaling factor
+  
+  # Vectorized Edge Correction for Pc to avoid extreme probabilities
+  Pc <- ifelse(Pc == 1, 1 - (1 / (2 * n)),
+               ifelse(Pc == 0, (1 / (2 * n)),
+                      ifelse(Pc == 0.5, 0.5 + (1 / (2 * n)), Pc)))
+  
+  # Logit transformation of Pc
+  L = qlogis(Pc)
+  
+  # Compute drift rate (v)
+  x = L * (L * Pc^2 - L * Pc + Pc - 0.5) / VRT
+  v = sign(Pc - 0.5) * s * x^(1/4)
+  
+  # Apply model constraints
+  if (model_type == "drift_only" & !is.null(fixed_a)) {
+    a = fixed_a  # Use fixed boundary separation
+  } else {
+    a = s2 * qlogis(Pc) / v  # Compute boundary separation
+  }
+  
+  if (model_type == "boundary_only" & !is.null(fixed_v)) {
+    v = fixed_v  # Use fixed drift rate
+  }
+  
+  # Compute Mean Decision Time (MDT)
+  y = -v * a / s2
+  MDT = (a / (2 * v)) * (1 - exp(y)) / (1 + exp(y))
+  
+  # Compute Non-Decision Time (Ter)
+  Ter = MRT - MDT
+  
+  return(list(v = v, a = a, Ter = Ter))
+}
+
+# -----------------------------------------------------------
+# DATA LOADING AND PREPROCESSING
+# -----------------------------------------------------------
+
+# Load data from CSV file
+data <- read.csv("regression_input.csv")
+
+# Clean and preprocess data
+data_clean <- data %>%
+  filter(!is.na(binary_question_key_resp.rt) & !is.na(binary_question_key_resp.keys) & !is.na(condition)) %>% 
+  mutate(correct = ifelse(binary_question_key_resp.keys == 'left', 1, 0))  # Convert response to binary
+
+# Compute summary statistics per condition
+dat_group_summary <- data_clean %>%
+  group_by(condition) %>%
+  summarise(
+    Pc = mean(correct),  # Proportion of correct responses
+    VRT = var(binary_question_key_resp.rt[correct == 1]),  # Variance of reaction times for correct responses
+    MRT = mean(binary_question_key_resp.rt[correct == 1]),  # Mean reaction time for correct responses
+    .groups = 'drop'
+  )
+
+# -----------------------------------------------------------
+# APPLY EZ-DIFFUSION MODEL UNDER DIFFERENT CONSTRAINTS
+# -----------------------------------------------------------
+
+# Full model (no constraints)
+dat_results_full <- dat_group_summary %>%
+  rowwise() %>%
+  mutate(EZ_output = list(EZ_model(Pc, VRT, MRT, model_type = "full"))) %>%
+  unnest_wider(EZ_output)
+
+# Drift-only model (boundary separation is fixed)
+dat_results_drift <- dat_group_summary %>%
+  rowwise() %>%
+  mutate(EZ_output = list(EZ_model(Pc, VRT, MRT, model_type = "drift_only", fixed_a = mean(dat_results_full$a)))) %>%
+  unnest_wider(EZ_output)
+
+# Boundary-only model (drift rate is fixed)
+dat_results_boundary <- dat_group_summary %>%
+  rowwise() %>%
+  mutate(EZ_output = list(EZ_model(Pc, VRT, MRT, model_type = "boundary_only", fixed_v = mean(dat_results_full$v)))) %>%
+  unnest_wider(EZ_output)
+
+# Combine results into a single dataframe
+dat_results <- bind_rows(
+  dat_results_full %>% mutate(model = "Full"),
+  dat_results_drift %>% mutate(model = "Drift-Only"),
+  dat_results_boundary %>% mutate(model = "Boundary-Only")
+)
+
+# Print model estimates
+print(dat_results)
+
+# -----------------------------------------------------------
+# COMPUTE AIC & BIC FOR MODEL COMPARISON
+# -----------------------------------------------------------
+
+# Function to compute AIC and BIC
+compute_aic_bic <- function(log_likelihood, num_params, num_observations) {
+  aic <- 2 * num_params - 2 * log_likelihood
+  bic <- num_params * log(num_observations) - 2 * log_likelihood
+  return(list(AIC = aic, BIC = bic))
+}
+
+# Compute log-likelihood for each model
+log_likelihood_full <- sum(dnorm(dat_results_full$MRT, mean = dat_results_full$v / dat_results_full$a, sd = sqrt(dat_results_full$VRT), log = TRUE))
+log_likelihood_drift <- sum(dnorm(dat_results_drift$MRT, mean = dat_results_drift$v / dat_results_drift$a, sd = sqrt(dat_results_drift$VRT), log = TRUE))
+log_likelihood_boundary <- sum(dnorm(dat_results_boundary$MRT, mean = dat_results_boundary$v / dat_results_boundary$a, sd = sqrt(dat_results_boundary$VRT), log = TRUE))
+
+# Compute AIC & BIC for each model
+aic_bic_full <- compute_aic_bic(log_likelihood_full, num_params = 3, num_observations = nrow(dat_results_full))
+aic_bic_drift <- compute_aic_bic(log_likelihood_drift, num_params = 2, num_observations = nrow(dat_results_drift))
+aic_bic_boundary <- compute_aic_bic(log_likelihood_boundary, num_params = 2, num_observations = nrow(dat_results_boundary))
+
+# Store results in a tibble
+aic_bic_results <- tibble(
+  Model = c("Full", "Drift-Only", "Boundary-Only"),
+  AIC = c(aic_bic_full$AIC, aic_bic_drift$AIC, aic_bic_boundary$AIC),
+  BIC = c(aic_bic_full$BIC, aic_bic_drift$BIC, aic_bic_boundary$BIC)
+)
+
+# Print AIC & BIC results
+print(aic_bic_results)
