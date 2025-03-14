@@ -75,7 +75,7 @@ cliffs_delta_binary <- compute_cliffs_delta(
   input %>% filter(binary_response == "no") %>% pull(confidence_rating)
 )
 # -----------------------------------------------------------------------------------
-# Compute Binary Response × Synchrony Interaction
+# Compute Binary Response × Synchrony
 # -----------------------------------------------------------------------------------
 cliffs_delta_binary_sync <- compute_cliffs_delta(
   input %>% filter(binary_response == "yes", synchrony == "high") %>% pull(confidence_rating),
@@ -87,7 +87,7 @@ cliffs_delta_binary_sync_low <- compute_cliffs_delta(
   input %>% filter(binary_response == "no", synchrony == "low") %>% pull(confidence_rating)
 )
 # -----------------------------------------------------------------------------------
-# Compute Binary Response × Directed Motion Interaction
+# Compute Binary Response × Directed Motion 
 # -----------------------------------------------------------------------------------
 
 cliffs_delta_binary_motion <- compute_cliffs_delta(
@@ -101,7 +101,7 @@ cliffs_delta_binary_motion_absent <- compute_cliffs_delta(
 )
 
 # -----------------------------------------------------------------------------------
-# Compute Three-Way Interaction: Binary Response × Synchrony × Directed Motion
+# Compute Binary Response × Synchrony × Directed Motion
 # -----------------------------------------------------------------------------------
 
 # Compute Cliff’s Delta for each condition
