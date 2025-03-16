@@ -1,39 +1,43 @@
 ##### This script analyses the 3rd and 4th experiment of the moving discs study with outliers included ##### 
-#  This includes: 
-# Participants with 25% of responses below 800ms
-# Participants whose longstring index is above the threshold
-# Indiviudal response below 800ms for the purpose response and 300ms for the confidence ratings
-# Responses whose response times for both purpose response and confidence ratings fall outside of the whiskers of a boxplot
+#  Outliers include: 
+# - Participants with 25% of responses below 800ms
+# - Participants whose longstring index is above the threshold
+# - Individual responses below 800ms for the purpose response and 300ms for the confidence ratings
+# - Responses where response times for both purpose response and confidence ratings fall outside of the whiskers of a boxplot
 
-# Data-wrangling original data ---------------------------------------------------------------
+# ------------------------------------------------------------
+#  Data Wrangling 
+# ------------------------------------------------------------
 
-# Install and load packages
+# Install and load necessary packages for data processing, visualization, and modeling
 install.packages("readr") # for reading csv files
 library(readr)
 install.packages("dplyr") # for data manipulation
 library(dplyr)
 install.packages("tidyr") # for tidying data
 library(tidyr)
-install.packages("ggplot2") # for data visualisation
+install.packages("ggplot2") # for data visualization
 library(ggplot2)
 install.packages("stringr") # for string manipulation
 library(stringr)
-install.packages("lme4") # for linear regression models
+install.packages("lme4") # for mixed-effects regression models
 library(lme4)
 install.packages("emmeans") # for post-hoc comparisons
 library(emmeans) 
 install.packages("ordinal") # for ordinal regression models
 library(ordinal)  
-install.packages("gridExtra")
+install.packages("gridExtra") # for arranging multiple plots
 library(gridExtra)
 
-# Clear the workspace
+# Clear the workspace to avoid conflicts with previous objects
 rm(list = ls())
 
-# Set the working directory to the folder containing the participant files
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/incl_outliers")
+# ------------------------------------------------------------
+# Data Import 
+# ------------------------------------------------------------
 
-# Set the working directory to the folder containing the participant files
+# Set working directory to folders containing participant data (update as needed)
+setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/incl_outliers")
 setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/incl_outliers")
 
 # List of file names for each participant's data 3rd exp.
@@ -65,13 +69,15 @@ participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7
                        "P78.csv", "P79.csv", "P80.csv","P81.csv","P82.csv","P83.csv","P84.csv", 
                        "P85.csv","P86.csv","P87.csv","P88.csv")
 
-# Initialize an empty list to store data frames for each participant
+# ------------------------------------------------------------
+#  Data Processing 
+# ------------------------------------------------------------
+
+# Initialize an empty list to store participant data
 original_data <- list()
+max_rows <- 0  # Track the maximum number of rows across datasets
 
-# Initialize a variable to track the maximum number of rows across all data frames
-max_rows <- 0
-
-# Loop through each file, read the data, and update max_rows
+# Loop through participant files, load them, and store data in a list
 for (file in participant_files) {
   data <- read_csv(file)
   print(paste("Reading file:", file))
@@ -79,14 +85,13 @@ for (file in participant_files) {
   original_data[[length(original_data) + 1]] <- data
 }
 
-# Initialize an empty data frame to store combined data for all participants, including outliers
+# Combine participant data into one dataframe
 all_participants_incl_outliers <- data.frame()
 
-# Loop through each participant's data frame
+# Ensure consistent row structure across participants (fill missing rows with NA)
 for (i in 1:length(original_data)) {
   data <- original_data[[i]]
   
-  # Ensure the data has max_rows rows, filling with NAs if not
   if (nrow(data) < max_rows) {
     needed <- max_rows - nrow(data)
     na_data <- as.data.frame(matrix(NA, ncol = ncol(data), nrow = needed))
@@ -94,181 +99,136 @@ for (i in 1:length(original_data)) {
     data <- rbind(data, na_data)
   }
   
-  # Select the columns of interest
-  selected_data <- data[c('ParticipantID', 'workerId', 'binary_question_key_resp.keys', 'binary_question_key_resp.rt', 'slider_confidence.response', 'slider_confidence.rt', 'condition', 'movie1')]
+  # Select relevant columns
+  selected_data <- data[c('ParticipantID', 'workerId', 'binary_question_key_resp.keys', 
+                          'binary_question_key_resp.rt', 'slider_confidence.response', 
+                          'slider_confidence.rt', 'condition', 'movie1')]
   
-  # Rename columns to avoid name clashes
+  # Rename columns to prevent name clashes across participants
   colnames(selected_data) <- paste0(colnames(selected_data), "_", i)
   
-  # Append the data to the final data frame
-  if(ncol(all_participants_incl_outliers) == 0) {
+  # Merge into a single dataframe
+  if (ncol(all_participants_incl_outliers) == 0) {
     all_participants_incl_outliers <- selected_data
   } else {
     all_participants_incl_outliers <- cbind(all_participants_incl_outliers, selected_data)
   }
 }
 
-# Save the final data frame (named all_participants_incl_outliers) to a CSV file
+# Save combined dataset
 write.csv(all_participants_incl_outliers, "all_participants_incl_outliers.csv", row.names = FALSE)
 
-## Regression Data-wrangling ---------------------------------------------------
+# ------------------------------------------------------------
+#  Regression Preparation 
+# ------------------------------------------------------------
 
-# Read in the combined dataset
+# Load the cleaned dataset
 all_participants_incl_outliers <- read_csv("all_participants_incl_outliers.csv")
 
-# Initialize an empty dataframe to store the reshaped data
+# Initialize an empty dataframe for regression input
 regression_input <- data.frame()
 
-# Loop through each participant
+# Reshape dataset to prepare for regression modeling
 for (i in 1:length(original_data)) {
-  # Dynamically generate column names for the current participant
-  participant_columns <- c(paste0("ParticipantID_", i), paste0("binary_question_key_resp.keys_", i), 
-                           paste0("binary_question_key_resp.rt_", i), paste0("slider_confidence.response_", i), 
+  participant_columns <- c(paste0("ParticipantID_", i), 
+                           paste0("binary_question_key_resp.keys_", i), 
+                           paste0("binary_question_key_resp.rt_", i), 
+                           paste0("slider_confidence.response_", i), 
                            paste0("condition_", i))
   
-  # Extract columns for the current participant, selecting rows 10 to 50
   participant_data <- all_participants_incl_outliers %>%
     dplyr::select(all_of(participant_columns)) %>%
-    dplyr::slice(9:48)  # Selecting rows 9 to 48 (since indices are inclusive)
+    dplyr::slice(9:48)  # Select rows of interest
   
-  # Rename columns to remove the participant index and make them consistent
   colnames(participant_data) <- c("ParticipantID", "binary_question_key_resp.keys", 
                                   "binary_question_key_resp.rt", "slider_confidence.response", 
                                   "condition")
-  
-  # Add a column for the participant ID
   participant_data$participant <- i
-  
-  # Bind the data for the current participant to the reshaped data frame
   regression_input <- bind_rows(regression_input, participant_data)
 }
 
-# View the resulting reshaped dataframe
-print(regression_input)
-
-# Save the resulting dataframe to a CSV file
+# Save reshaped data for regression
 write.csv(regression_input, "regression_input.csv", row.names = FALSE)
 
-## Mixed effects regression binary response (factorial design) -------------------------
+# ------------------------------------------------------------
+# Mixed-Effects Regression Binary Response
+# ------------------------------------------------------------
 
-# Read your original dataset
+# Load dataset
 regression_input <- read.csv("regression_input.csv")
 
-## Data-wrangling 
+# Create categorical predictors for regression models
+regression_input$correlation <- factor(ifelse(grepl("HS", regression_input$condition), "high", "low"))
+regression_input$interaction <- factor(ifelse(grepl("DA$", regression_input$condition), "absent", "present"))
 
-# Create the CrossCorrelation column
-regression_input$correlation <- ifelse(grepl("HS", regression_input$condition), "high", "low")
+# Apply effect coding instead of dummy coding
+contrasts(regression_input$correlation) <- contr.sum(2)
+contrasts(regression_input$interaction) <- contr.sum(2)
 
-# Create the Interaction column
-regression_input$interaction <- ifelse(grepl("DA$", regression_input$condition), "absent", "present")
-
-# Convert the new columns to factors if necessary
-regression_input$correlation <- as.factor(regression_input$correlation)
-regression_input$interaction <- as.factor(regression_input$interaction)
-
-# Save the updated dataframe
-write.csv(regression_input, "factorial_regression_input.csv", row.names = FALSE)
-
-## Binary response 
-
-# Load the regression input data
-regression_input <- read_csv("factorial_regression_input.csv")
-
-# Recode binary responses
-# left = 1; right = 0; handle NAs
-regression_input$binary_question_key_resp.keys <- ifelse(
-  regression_input$binary_question_key_resp.keys == "left", "1",
-  ifelse(regression_input$binary_question_key_resp.keys == "right", "0", NA)
-)
-
-# Check if the recoding was successful and view a summary
-summary(regression_input$binary_question_key_resp.keys)
-
-# Print the updated dataframe
-print (regression_input)
-
-# Convert binary responses to factor
-regression_input$binary_question_key_resp.keys <- as.factor(regression_input$binary_question_key_resp.keys)
-
-# Set reference levels for factors
-# Sets "high" as the reference level for correlation and "present" as the reference level for interaction
-regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
-regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent")) 
-
-# Fit a mixed-effects logistic regression model with interaction terms
-# Specify control settings if you're having convergence issues, otherwise, this might be optional
-# control <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1000))
-# control <- glmerControl(optimizer = "nloptwrap")
-
+# Fit mixed-effects logistic regression models
 binary_model_mixed <- glmer(binary_question_key_resp.keys ~ correlation * interaction + (1 | participant),
                             family = binomial, data = regression_input)
 
-# Fit a mixed-effects logistic regression model without interaction terms
 binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.keys ~ correlation + interaction + (1 | participant),
-                            family = binomial, data = regression_input)
+                                           family = binomial, data = regression_input)
 
-# Fit a logistic regression model with interaction terms (without mixed-effects)
 binary_model_standard <- glm(binary_question_key_resp.keys ~ correlation * interaction, 
                              family = binomial, data = regression_input)
 
-
-# Summarize the model results
+# Summarize results
 summary(binary_model_mixed)
 summary(binary_model_mixed_no_interaction)
-summary(binary_model_standard) 
+summary(binary_model_standard)
 
-# Get estimated marginal means
-emm <- emmeans(binary_model_mixed, ~ correlation | interaction) # Effect of synchrony at each motion level
-emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation) # Effect of motion at each synchrony level
+# ------------------------------------------------------------
+#  Post-Hoc Comparisons 
+# ------------------------------------------------------------
 
-# Test simple effects: Synchrony at each level of Directed Motion
-contrast(emm, method = "pairwise", adjust = "bonferroni") 
+# Compute estimated marginal means and pairwise comparisons
+emm <- emmeans(binary_model_mixed, ~ correlation | interaction)
+emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation)
 
-# Test simple effects: Directed Motion at each level of Synchrony
+# Test simple effects using Bonferroni correction
+contrast(emm, method = "pairwise", adjust = "bonferroni")
 contrast(emm2, method = "pairwise", adjust = "bonferroni")
 
-# Get estimated marginal means
-emm <- emmeans(binary_model_standard, ~ correlation | interaction) # Effect of synchrony at each motion level
-emm2 <- emmeans(binary_model_standard, ~ interaction | correlation) # Effect of motion at each synchrony level
+# Post-hoc comparisons using emmeans
+comparisons_binary_mixed <- pairs(emm)
+comparisons_binary_standard <- pairs(emmeans(binary_model_standard, ~ correlation * interaction))
 
-# Test simple effects: Synchrony at each level of Directed Motion
-contrast(emm, method = "pairwise", adjust = "bonferroni") 
-
-# Test simple effects: Directed Motion at each level of Synchrony
-contrast(emm2, method = "pairwise", adjust = "bonferroni")
-
-# Perform post-hoc comparisons using the emmeans package
-emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
-comparisons_binary_mixed<- pairs(emm)
-
-emm <- emmeans(binary_model_standard, ~ correlation * interaction)
-comparisons_binary_standard<- pairs(emm)
-
-# Print the pairwise comparisons
+# Print results
 summary(comparisons_binary_mixed)
 summary(comparisons_binary_standard)
 
-# Mixed effects regression RT (factorial design)--------------------------------
+# ------------------------------------------------------------
+# Mixed Effects Regression Reaction Times
+# ------------------------------------------------------------
 
-# Read the dataset
+# Load the dataset containing reaction time data
 regression_input <- read.csv("factorial_regression_input.csv")
 
-# Convert reaction times to numeric
+# Convert reaction times to numeric format for regression analysis
 regression_input$binary_question_key_resp.rt <- as.numeric(regression_input$binary_question_key_resp.rt)
 
-# Set reference levels for factors
+# Explicitly set factor levels before applying effect coding
 regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
 regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
 
-# Remove rows with zero reaction times
+# Apply effect coding (sum contrasts) to categorical predictors
+contrasts(regression_input$correlation) <- contr.sum(2) 
+contrasts(regression_input$interaction) <- contr.sum(2)
+
+# Remove rows with zero reaction times to avoid computational issues
 regression_input <- regression_input[regression_input$binary_question_key_resp.rt > 0, ]
 
-# Fit a mixed-effects linear regression model for reaction times with interaction
-gamma_regression_model_mixed <- glmer(binary_question_key_resp.rt ~ correlation * interaction + (1 | participant), 
-family = Gamma(link = "log"), data = regression_input)
-# this lead to convergence issues
+# Fit a mixed-effects linear regression model for reaction times with interaction effects
+# Initial model may lead to convergence issues
 
-# Alternative:
+gamma_regression_model_mixed <- glmer(
+  binary_question_key_resp.rt ~ correlation * interaction + (1 | participant), 
+  family = Gamma(link = "log"), data = regression_input)
+
+# Alternative model specification with improved optimization settings
 gamma_regression_model_mixed <- glmer(
   binary_question_key_resp.rt ~ correlation * interaction + (1 | participant),
   family = Gamma(link = "log"), 
@@ -276,11 +236,12 @@ gamma_regression_model_mixed <- glmer(
   control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
 )
 
-# Fit a mixed-effects linear regression model for reaction times without interaction
-gamma_regression_model_mixed_no_interaction <- glmer(binary_question_key_resp.rt ~ correlation + interaction + (1 | participant), 
-                                      family = Gamma(link = "log"), data = regression_input)
+# Fit a mixed-effects linear regression model for reaction times without interaction effects
+gamma_regression_model_mixed_no_interaction <- glmer(
+  binary_question_key_resp.rt ~ correlation + interaction + (1 | participant), 
+  family = Gamma(link = "log"), data = regression_input)
 
-# Alternative:
+# Alternative version with enhanced optimization settings
 gamma_regression_model_mixed_no_interaction <- glmer(
   binary_question_key_resp.rt ~ correlation + interaction + (1 | participant),
   family = Gamma(link = "log"), 
@@ -288,16 +249,21 @@ gamma_regression_model_mixed_no_interaction <- glmer(
   control = glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
 )
 
+# Fit a standard (non-mixed) generalized linear model for reaction times
+gamma_regression_model_standard <- glm(
+  binary_question_key_resp.rt ~ correlation * interaction, 
+  family = Gamma(link = "log"), data = regression_input)
 
-gamma_regression_model_standard <- glm(binary_question_key_resp.rt ~ correlation * interaction, 
-                                       family = Gamma(link = "log"), data = regression_input)
-
-
-# Summarize the model results
+# Summarize model results
 summary(gamma_regression_model_mixed)
 summary(gamma_regression_model_mixed_no_interaction)
 summary(gamma_regression_model_standard)
 
+# ------------------------------------------------------------
+# Post-Hoc Comparisons 
+# ------------------------------------------------------------
+
+# Compute estimated marginal means and test simple effects
 # Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
 emm_dm <- emmeans(gamma_regression_model_mixed, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
@@ -306,72 +272,88 @@ contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 emm_sync <- emmeans(gamma_regression_model_mixed, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+# Repeat the same tests for the standard GLM
 emm_dm <- emmeans(gamma_regression_model_standard, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
 emm_sync <- emmeans(gamma_regression_model_standard, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
-# Perform post-hoc comparisons using the emmeans package
+# Perform post-hoc comparisons using Tukey adjustment
 emm <- emmeans(gamma_regression_model_mixed, ~ correlation * interaction)
 comparisons_gamma_mixed <- pairs(emm, adjust = "tukey")
 
 emm <- emmeans(gamma_regression_model_standard, ~ correlation * interaction)
 comparisons_gamma_standard <- pairs(emm, adjust = "tukey")
 
-# Print the pairwise comparisons
+# Print pairwise comparisons
 summary(comparisons_gamma_mixed)
 summary(comparisons_gamma_standard)
 
-# Mixed effects regression confidence (factorial design) ----------------------
+# ------------------------------------------------------------
+#  Mixed Effects Regression Confidence Ratings 
+# ------------------------------------------------------------
 
-# Read the updated dataset
+# Load the dataset containing confidence ratings
 regression_input <- read.csv("factorial_regression_input.csv")
 
-# Convert confidence ratings to an ordered factor
-regression_input$slider_confidence.response<- factor(regression_input$slider_confidence.response, ordered = TRUE)
+# Convert confidence ratings to an ordered factor for ordinal regression
+regression_input$slider_confidence.response <- factor(regression_input$slider_confidence.response, ordered = TRUE)
 
-# Set reference levels for factors
+# Explicitly set factor levels before applying effect coding
 regression_input$correlation <- factor(regression_input$correlation, levels = c("high", "low"))
 regression_input$interaction <- factor(regression_input$interaction, levels = c("present", "absent"))
 
-# Fit a cumulative link model (CLM) for ordinal responses with interaction terms
-ordinal_regression_model_mixed <- clmm(slider_confidence.response ~ correlation * interaction + (1 | participant), data = regression_input)
-ordinal_regression_model_standard <- clm(slider_confidence.response ~ correlation * interaction, data = regression_input)
-# Fit a cumulative link model (CLM) for ordinal responses without interaction terms
-ordinal_regression_model_mixed_no_interaction <- clmm(slider_confidence.response ~ correlation + interaction + (1 | participant), data = regression_input)
+# Apply effect coding (sum contrasts)
+contrasts(regression_input$correlation) <- contr.sum(2) 
+contrasts(regression_input$interaction) <- contr.sum(2)
 
-# Summarize the model results
+# Fit a cumulative link mixed-effects model (CLMM) for ordinal responses with interaction effects
+ordinal_regression_model_mixed <- clmm(
+  slider_confidence.response ~ correlation * interaction + (1 | participant), 
+  data = regression_input)
+
+# Fit a standard cumulative link model (CLM) without random effects
+ordinal_regression_model_standard <- clm(
+  slider_confidence.response ~ correlation * interaction, 
+  data = regression_input)
+
+# Fit a cumulative link mixed-effects model without interaction effects
+ordinal_regression_model_mixed_no_interaction <- clmm(
+  slider_confidence.response ~ correlation + interaction + (1 | participant), 
+  data = regression_input)
+
+# Summarize model results
 summary(ordinal_regression_model_mixed)
 summary(ordinal_regression_model_mixed_no_interaction)
 summary(ordinal_regression_model_standard)
 
-# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
+# ------------------------------------------------------------
+# Post-Hoc Comparisons 
+# ------------------------------------------------------------
+
+# Compute estimated marginal means and test simple effects
 emm_dm <- emmeans(ordinal_regression_model_mixed, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
 emm_sync <- emmeans(ordinal_regression_model_mixed, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
 emm_dm <- emmeans(ordinal_regression_model_standard, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
 emm_sync <- emmeans(ordinal_regression_model_standard, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
-# Perform post-hoc comparisons using the emmeans package
+# Perform post-hoc comparisons using Tukey adjustment
 emm <- emmeans(ordinal_regression_model_mixed, ~ correlation * interaction)
-comparisons_ordinal_mixed <- emm %>% pairs(adjust = "tukey")
+comparisons_ordinal_mixed <- pairs(emm, adjust = "tukey")
 
 emm <- emmeans(ordinal_regression_model_standard, ~ correlation * interaction)
-comparisons_ordinal_standard <- emm %>% pairs(adjust = "tukey")
+comparisons_ordinal_standard <- pairs(emm, adjust = "tukey")
 
-# Print the pairwise comparisons
+# Print pairwise comparisons
 summary(comparisons_ordinal_mixed)
 summary(comparisons_ordinal_standard)
+
 
