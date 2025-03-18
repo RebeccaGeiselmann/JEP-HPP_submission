@@ -37,8 +37,7 @@ rm(list = ls())
 # ------------------------------------------------------------
 
 # Set working directory to folders containing participant data (update as needed)
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/3rd_online_experiment/incl_outliers")
-setwd("/Users/slava/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Analysis_online_experiments/4th_online_experiment/incl_outliers")
+setwd("")
 
 # List of file names for each participant's data 3rd exp.
 participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7.csv",
