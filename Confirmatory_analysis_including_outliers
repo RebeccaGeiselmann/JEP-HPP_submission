@@ -1,4 +1,4 @@
-##### This script analyses the 3rd and 4th experiment of the moving discs study with outliers included ##### 
+##### This script analyses the two experiments of the moving discs study with outliers included ##### 
 #  Outliers include: 
 # - Participants with 25% of responses below 800ms
 # - Participants whose longstring index is above the threshold
@@ -39,7 +39,7 @@ rm(list = ls())
 # Set working directory to folders containing participant data (update as needed)
 setwd("")
 
-# List of file names for each participant's data 3rd exp.
+# List of file names for each participant's data 1st exp.
 participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7.csv",
                        "P8.csv","P9.csv","P10.csv","P11.csv","P12.csv","P13.csv","P14.csv",
                        "P15.csv","P16.csv","P17.csv","P18.csv","P19.csv","P20.csv","P21.csv", 
@@ -53,7 +53,7 @@ participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7
                        "P71.csv","P72.csv","P73.csv","P74.csv","P75.csv","P76.csv", "P77.csv", 
                        "P78.csv", "P79.csv")
 
-# List of file names for each participant's data 4th exp.
+# List of file names for each participant's data 2nd exp.
 participant_files <- c("P1.csv","P2.csv","P3.csv","P4.csv","P5.csv","P6.csv","P7.csv",
                        "P8.csv","P9.csv","P10.csv","P11.csv","P12.csv","P13.csv","P14.csv",
                        "P15.csv","P16.csv","P17.csv","P18.csv","P19.csv","P20.csv","P21.csv", 
