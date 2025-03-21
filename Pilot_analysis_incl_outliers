@@ -187,9 +187,12 @@ emm2 <- emmeans(binary_model_standard, ~ interaction | correlation)
 contrast(emm, method = "pairwise", adjust = "bonferroni")
 contrast(emm2, method = "pairwise", adjust = "bonferroni")
 
-# Post-hoc comparisons using emmeans
-comparisons_binary_mixed <- pairs(emm)
-comparisons_binary_standard <- pairs(emmeans(binary_model_standard, ~ correlation * interaction))
+# Perform post-hoc comparisons using Tukey adjustment
+emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
+comparisons_binary_mixed <- pairs(emm, adjust = "tukey")
+
+emm <- emmeans(binary_model_standard, ~ correlation * interaction)
+comparisons_binary_standard <- pairs(emm, adjust = "tukey")
 
 # Print results
 summary(comparisons_binary_mixed)
