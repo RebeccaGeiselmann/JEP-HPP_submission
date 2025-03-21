@@ -1,4 +1,6 @@
-##### This script analyses the two experiments of the moving discs study with outliers included ##### 
+# ------------------------------------------------------------
+# Analysis of the two experiments with outliers included 
+# ------------------------------------------------------------
 #  Outliers include: 
 # - Participants with 25% of responses below 800ms
 # - Participants whose longstring index is above the threshold
@@ -29,14 +31,14 @@ library(ordinal)
 install.packages("gridExtra") # for arranging multiple plots
 library(gridExtra)
 
-# Clear the workspace to avoid conflicts with previous objects
-rm(list = ls())
-
 # ------------------------------------------------------------
 # Data Import 
 # ------------------------------------------------------------
 
-# Set working directory to folders containing participant data (update as needed)
+# Clear the workspace 
+rm(list = ls())
+
+# Set working directory to folders containing participant data 
 setwd("")
 
 # List of file names for each participant's data 1st exp.
@@ -160,17 +162,19 @@ regression_input <- read.csv("regression_input.csv")
 regression_input$correlation <- factor(ifelse(grepl("HS", regression_input$condition), "high", "low"))
 regression_input$interaction <- factor(ifelse(grepl("DA$", regression_input$condition), "absent", "present"))
 
-# Apply effect coding instead of dummy coding
+# Apply effect coding (sum contrasts) to categorical predictors
 contrasts(regression_input$correlation) <- contr.sum(2)
 contrasts(regression_input$interaction) <- contr.sum(2)
 
-# Fit mixed-effects logistic regression models
+# Fit mixed-effects logistic regression models with interaction
 binary_model_mixed <- glmer(binary_question_key_resp.keys ~ correlation * interaction + (1 | participant),
                             family = binomial, data = regression_input)
 
+# Fit mixed-effects logistic regression models without interaction
 binary_model_mixed_no_interaction <- glmer(binary_question_key_resp.keys ~ correlation + interaction + (1 | participant),
                                            family = binomial, data = regression_input)
 
+# Fit logistic regression models with interaction (without mixed_effects)
 binary_model_standard <- glm(binary_question_key_resp.keys ~ correlation * interaction, 
                              family = binomial, data = regression_input)
 
@@ -183,7 +187,7 @@ summary(binary_model_standard)
 #  Post-Hoc Comparisons 
 # ------------------------------------------------------------
 
-# Compute estimated marginal means and pairwise comparisons
+# Compute estimated marginal means 
 emm <- emmeans(binary_model_mixed, ~ correlation | interaction)
 emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation)
 
@@ -191,9 +195,19 @@ emm2 <- emmeans(binary_model_mixed, ~ interaction | correlation)
 contrast(emm, method = "pairwise", adjust = "bonferroni")
 contrast(emm2, method = "pairwise", adjust = "bonferroni")
 
-# Post-hoc comparisons using emmeans
-comparisons_binary_mixed <- pairs(emm)
-comparisons_binary_standard <- pairs(emmeans(binary_model_standard, ~ correlation * interaction))
+# Repeat the same tests for the standard GLM
+emm <- emmeans(binary_model_standard, ~ correlation | interaction)
+emm2 <- emmeans(binary_model_standard, ~ interaction | correlation)
+
+contrast(emm, method = "pairwise", adjust = "bonferroni")
+contrast(emm2, method = "pairwise", adjust = "bonferroni")
+
+# Perform post-hoc comparisons using Tukey adjustment
+emm <- emmeans(binary_model_mixed, ~ correlation * interaction)
+comparisons_binary_mixed <- pairs(emm, adjust = "tukey")
+
+emm <- emmeans(binary_model_standard, ~ correlation * interaction)
+comparisons_binary_standard <- pairs(emm, adjust = "tukey")
 
 # Print results
 summary(comparisons_binary_mixed)
@@ -221,8 +235,6 @@ contrasts(regression_input$interaction) <- contr.sum(2)
 regression_input <- regression_input[regression_input$binary_question_key_resp.rt > 0, ]
 
 # Fit a mixed-effects linear regression model for reaction times with interaction effects
-# Initial model may lead to convergence issues
-
 gamma_regression_model_mixed <- glmer(
   binary_question_key_resp.rt ~ correlation * interaction + (1 | participant), 
   family = Gamma(link = "log"), data = regression_input)
@@ -263,11 +275,9 @@ summary(gamma_regression_model_standard)
 # ------------------------------------------------------------
 
 # Compute estimated marginal means and test simple effects
-# Effect of Directed Motion (Present vs. Absent) at Each Level of Synchrony
 emm_dm <- emmeans(gamma_regression_model_mixed, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 
-# Effect of Synchrony (High vs. Low) at Each Level of Directed Motion
 emm_sync <- emmeans(gamma_regression_model_mixed, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
@@ -312,7 +322,7 @@ ordinal_regression_model_mixed <- clmm(
   slider_confidence.response ~ correlation * interaction + (1 | participant), 
   data = regression_input)
 
-# Fit a standard cumulative link model (CLM) without random effects
+# Fit a standard (non_mixed) cumulative link model (CLM) 
 ordinal_regression_model_standard <- clm(
   slider_confidence.response ~ correlation * interaction, 
   data = regression_input)
@@ -338,6 +348,7 @@ contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 emm_sync <- emmeans(ordinal_regression_model_mixed, ~ correlation | interaction)
 contrast(emm_sync, method = "pairwise", adjust = "bonferroni")
 
+# Repeat the same tests for the standard GLM
 emm_dm <- emmeans(ordinal_regression_model_standard, ~ interaction | correlation)
 contrast(emm_dm, method = "pairwise", adjust = "bonferroni")
 
